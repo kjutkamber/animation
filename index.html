@@ -209,6 +209,17 @@
         <div id="settings-prof-list" style="margin-top:14px"></div>
       </div>
 
+      <div class="card" style="margin-bottom:16px">
+        <div class="section-header" style="margin-bottom:8px">
+          <div>
+            <h3 style="margin:0 0 4px;font-size:15px;font-weight:600"><span id="settings-stu-title">Studenti</span> <span id="settings-stu-count" class="badge mono">0</span></h3>
+            <p id="settings-stu-sub" class="section-desc"></p>
+          </div>
+          <input id="stu-search" class="input" style="max-width:260px" oninput="adminStuSearch(this.value)" autocomplete="off" />
+        </div>
+        <div id="settings-students"></div>
+      </div>
+
       <div class="card">
         <div class="section-header" style="margin-bottom:8px">
           <div>
@@ -257,7 +268,9 @@
       </div>
     </section>
 
-
+    <!-- =====================================================================
+         SCREEN 3: STUDENT PROJECTS HOME (#projects-screen)
+         ===================================================================== -->
     <section id="projects-screen" class="hidden">
       <div class="section-header">
         <div>
@@ -349,7 +362,7 @@
       <div id="prof-approval-queue" class="card hidden" style="margin-bottom:16px;border-color:rgba(245,158,11,0.45)"></div>
 
       <!-- Students in Selected Study Year -->
-      <div id="prof-students-grid" class="grid-3"></div>
+      <div id="prof-students-grid"></div>
     </section>
   </main>
 
@@ -516,6 +529,45 @@
           <button type="button" id="btn-gm-cancel" class="btn" onclick="closeModal('grading-modal')">Otkaži</button>
           <button type="submit" id="btn-gm-save" class="btn btn-primary">Sačuvaj ocene</button>
         </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="admin-student-modal" class="modal-backdrop hidden">
+    <div class="modal-box" style="max-width:420px">
+      <div class="modal-header">
+        <h3 id="as-title" style="margin:0;font-size:16px;font-weight:600">Izmena studenta</h3>
+        <button type="button" class="btn btn-sm" onclick="closeModal('admin-student-modal')">✕</button>
+      </div>
+      <form onsubmit="adminSaveStudent(event)">
+        <input type="hidden" id="as-uid" />
+        <div id="as-error" class="error-text hidden"></div>
+        <div class="grid-2">
+          <div class="field-group">
+            <label id="lbl-as-fname" class="field-label" for="as-fname">Ime *</label>
+            <input id="as-fname" class="input" required />
+          </div>
+          <div class="field-group">
+            <label id="lbl-as-lname" class="field-label" for="as-lname">Prezime *</label>
+            <input id="as-lname" class="input" required />
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="field-group">
+            <label id="lbl-as-index" class="field-label" for="as-index">Broj indeksa *</label>
+            <input id="as-index" class="input" required />
+          </div>
+          <div class="field-group">
+            <label id="lbl-as-year" class="field-label" for="as-year">Godina studija *</label>
+            <select id="as-year" class="select">
+              <option value="1">1. godina</option>
+              <option value="2">2. godina</option>
+              <option value="3">3. godina</option>
+              <option value="4">4. godina</option>
+            </select>
+          </div>
+        </div>
+        <button type="submit" id="btn-as-submit" class="btn btn-primary" style="width:100%">Sačuvaj</button>
       </form>
     </div>
   </div>

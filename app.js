@@ -31,17 +31,24 @@ service cloud.firestore {
         get(/databases/$(db)/documents/users/$(request.auth.uid)).data.role == 'professor';
     }
     match /users/{uid} {
-      allow read: if signedIn() || resource.data.role == 'professor';
-      allow create: if signedIn() && request.auth.uid == uid;      // TEMP: needed so admin screen can create professors
-      allow update: if signedIn() && request.auth.uid == uid
-                    && request.resource.data.role == resource.data.role;   // role cannot be changed afterwards
-      allow delete: if resource.data.role == 'professor';            // TEMP: admin screen
+      allow read: if true;                                           // TEMP: admin screen lists students
+      allow create: if signedIn() && request.auth.uid == uid;
+      allow update: if request.resource.data.role == resource.data.role;   // TEMP: admin screen edits students
+      allow delete: if true;                                         // TEMP: admin screen
+    }
+    match /logins/{slug} {                                           // index number -> login email
+      allow read: if true;
+      allow write: if true;                                          // TEMP: admin screen
     }
     match /projects/{pid} {
-      allow read: if signedIn() && (isProf() || resource.data.studentId == request.auth.uid);
+      allow read: if true;                                           // TEMP: admin screen (professors only query public projects)
       allow create: if signedIn() && request.resource.data.studentId == request.auth.uid;
-      allow update: if signedIn() && (isProf() || resource.data.studentId == request.auth.uid);
-      allow delete: if signedIn() && resource.data.studentId == request.auth.uid;
+      allow update: if true;                                         // TEMP: admin screen moves projects on password reset
+      allow delete: if true;                                         // TEMP: admin screen
+    }
+    match /notifs/{nid} {                                            // privacy notices for professors
+      allow read, update: if isProf();
+      allow create: if signedIn();
     }
     match /settings/{doc} {
       allow read: if true;
@@ -533,6 +540,54 @@ service cloud.firestore {
         tplAddTask: '+ task', tplAddCat: '+ category', tplNewTask: 'New task', tplNewCat: 'New category'
       }
     };
+
+    // ---- v7 additions (admin students, privacy, archive, notifications, file versions)
+    Object.assign(I18N.sr, {
+      projectNowPrivateToast: 'Student je projekat postavio kao privatan — više nije vidljiv profesorima.',
+      archivedByProfToast: 'Ovaj projekat je arhivirao profesor — ne možete ga vratiti iz arhive.',
+      archivedByProfLbl: 'Arhivirao profesor', archivedByStudentLbl: 'Arhivirao student',
+      goPrivateConfirm: 'Projekat postaje privatan: samo vi ćete ga videti, profesori NE. Profesori dobijaju obaveštenje da je projekat postao privatan. Nastaviti?',
+      nowPublicToast: 'Projekat je javan — profesori ga vide i dobili su obaveštenje.',
+      nowPrivateToast: 'Projekat je privatan — vidite ga samo vi. Profesori su obavešteni.',
+      visNotifPrivate: 'postavio je projekat kao privatan — profesori ga više ne vide',
+      visNotifPublic: 'postavio je projekat kao javan',
+      markReadBtn: 'Pročitano', markAllRead: 'Označi sve kao pročitano', noPublicProjects: 'Nema javnih projekata.',
+      inboxAll: 'Sve', inboxFQuestions: 'Pitanja', inboxFApprovals: 'Odobrenja', inboxFPrivacy: 'Privatnost',
+      archivedSection: (n) => `Arhivirano (${n})`, studentsCount: (n) => `${n} stud.`,
+      newVersionBtn: '↻ Nova verzija', versionsLbl: (n) => `${n} verzije`, versionsHint: 'Prikaži sve verzije',
+      deleteAllVersionsConfirm: (n) => `Obrisati fajl i svih ${n} verzija?`, versionUploaded: (n) => `Otpremljena verzija v${n}.`,
+      settingsStuTitle: 'Studenti', settingsStuSub: 'Pregled svih studenata po godinama: izmena podataka, nova lozinka i brisanje profila.',
+      stuSearchPh: 'Pretraga po imenu ili indeksu…', noStudentsAdmin: 'Nema studenata.',
+      stuEditBtn: 'Izmeni', stuPassBtn: 'Nova lozinka', stuDeleteBtn: 'Obriši', stuEditTitle: 'Izmena studenta', stuSaveBtn: 'Sačuvaj',
+      stuNewPassPrompt: (n) => `Nova lozinka za ${n} (min. 6 karaktera):`,
+      stuPassDone: (n) => `Lozinka je promenjena za ${n}. Student se prijavljuje novom lozinkom.`,
+      stuSaved: 'Student je izmenjen.',
+      stuDeleteConfirm: (n, p) => `Obrisati studenta ${n} i svih ${p} njegovih projekata? Ovo se ne može poništiti. (Fajlovi na studentovom Google Drive-u ostaju.)`,
+      stuDeleted: 'Student je obrisan.', projDeleteConfirm: (n) => `Obrisati projekat „${n}”?`, noProjectsYet: 'Nema projekata.'
+    });
+    Object.assign(I18N.en, {
+      projectNowPrivateToast: 'The student made this project private — it is no longer visible to professors.',
+      archivedByProfToast: 'This project was archived by a professor — you cannot restore it.',
+      archivedByProfLbl: 'Archived by professor', archivedByStudentLbl: 'Archived by student',
+      goPrivateConfirm: 'The project becomes private: only you can see it, professors cannot. Professors get a notification that it became private. Continue?',
+      nowPublicToast: 'Project is public — professors can see it and were notified.',
+      nowPrivateToast: 'Project is private — only you can see it. Professors were notified.',
+      visNotifPrivate: 'made the project private — professors can no longer see it',
+      visNotifPublic: 'made the project public',
+      markReadBtn: 'Mark read', markAllRead: 'Mark all as read', noPublicProjects: 'No public projects.',
+      inboxAll: 'All', inboxFQuestions: 'Questions', inboxFApprovals: 'Approvals', inboxFPrivacy: 'Privacy',
+      archivedSection: (n) => `Archived (${n})`, studentsCount: (n) => `${n} students`,
+      newVersionBtn: '↻ New version', versionsLbl: (n) => `${n} versions`, versionsHint: 'Show all versions',
+      deleteAllVersionsConfirm: (n) => `Delete the file and all ${n} versions?`, versionUploaded: (n) => `Version v${n} uploaded.`,
+      settingsStuTitle: 'Students', settingsStuSub: 'All students by study year: edit details, set a new password or delete a profile.',
+      stuSearchPh: 'Search by name or index…', noStudentsAdmin: 'No students.',
+      stuEditBtn: 'Edit', stuPassBtn: 'New password', stuDeleteBtn: 'Delete', stuEditTitle: 'Edit student', stuSaveBtn: 'Save',
+      stuNewPassPrompt: (n) => `New password for ${n} (min. 6 characters):`,
+      stuPassDone: (n) => `Password changed for ${n}. The student signs in with the new password.`,
+      stuSaved: 'Student updated.',
+      stuDeleteConfirm: (n, p) => `Delete student ${n} and all ${p} of their projects? This cannot be undone. (Files on the student's Google Drive stay.)`,
+      stuDeleted: 'Student deleted.', projDeleteConfirm: (n) => `Delete project "${n}"?`, noProjectsYet: 'No projects.'
+    });
     Object.assign(I18N.sr, I18N_EXTRA.sr);
     Object.assign(I18N.en, I18N_EXTRA.en);
 
@@ -552,7 +607,8 @@ service cloud.firestore {
       booting: false,
       adminOpen: false,
       driveOnboarding: false,
-      justRegistered: false
+      justRegistered: false,
+      inboxFilter: 'all'     // 'all' | 'questions' | 'approvals' | 'privacy'
     };
 
     function t(key, ...args) {
@@ -616,10 +672,27 @@ service cloud.firestore {
     let writesInFlight = 0, rebuildPending = false, writeChain = Promise.resolve();
     let registering = false;
     let adminTplDraft = null;
+    let visNotifs = [];        // privacy notices (notifs collection) — professors only
+    let adminStudents = [], adminProjects = [], adminUnsubs = [], adminStuQuery = '', adminBackfilled = false;
 
-    function indexToEmail(idx) {
-      const slug = String(idx).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-      return `${slug || 'student'}@students.animpipe.app`;
+    function indexSlug(idx) {
+      return String(idx).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'student';
+    }
+
+    // legacy accounts (created before password resets existed) log in with this email
+    function indexToEmail(idx) { return `${indexSlug(idx)}@students.animpipe.app`; }
+
+    // new accounts get a unique email so a deleted / reset index can always be registered again
+    function newStudentEmail(idx) {
+      return `${indexSlug(idx)}.${Math.random().toString(36).slice(2, 8)}@students.animpipe.app`;
+    }
+
+    async function resolveLoginEmail(idx) {
+      try {
+        const snap = await db.collection('logins').doc(indexSlug(idx)).get();
+        if (snap.exists && snap.data().email) return snap.data().email;
+      } catch (e) { console.warn('logins lookup', e); }
+      return indexToEmail(idx);
     }
 
     function authErrMsg(err, ctx) {
@@ -703,6 +776,7 @@ service cloud.firestore {
       appState.activeTab = 'projects';
       studentProfiles = {};
       projectsById = {};
+      visNotifs = [];
 
       if (profile.role === 'professor') {
         appState.userType = 'professor';
@@ -712,11 +786,16 @@ service cloud.firestore {
           snap.docs.forEach(d => { studentProfiles[d.id] = { id: d.id, ...d.data() }; });
           onDataChanged();
         }, err => console.error('students listener', err)));
-        unsubs.push(db.collection('projects').onSnapshot(snap => {
+        // private projects are never downloaded by professors
+        unsubs.push(db.collection('projects').where('isPublic', '==', true).onSnapshot(snap => {
           projectsById = {};
           snap.docs.forEach(d => { projectsById[d.id] = { ...d.data(), id: d.id }; });
           onDataChanged();
         }, err => console.error('projects listener', err)));
+        unsubs.push(db.collection('notifs').orderBy('ts', 'desc').limit(200).onSnapshot(snap => {
+          visNotifs = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+          onDataChanged();
+        }, err => console.error('notifs listener', err)));
       } else {
         appState.userType = 'student';
         appState.currentUser = { id: uid, ...profile, projects: [] };
@@ -760,6 +839,18 @@ service cloud.firestore {
     function refreshFromBackend() {
       rebuildStudentsData();
       if (!appState.userType) return;
+      // a student made the project private while the professor was inside it
+      if (appState.userType === 'professor' && appState.inspectStudentId && appState.activeProjectId) {
+        const st = studentsData.find(s => s.id === appState.inspectStudentId);
+        if (!st || !(st.projects || []).some(p => p.id === appState.activeProjectId)) {
+          appState.inspectStudentId = null;
+          appState.activeProjectId = null;
+          appState.activeTab = 'projects';
+          activeTaskModalIds = null;
+          document.getElementById('task-detail-modal').classList.add('hidden');
+          showToast(t('projectNowPrivateToast'));
+        }
+      }
       renderAll();
       if (activeTaskModalIds && !lightboxState) {
         const inp = document.getElementById('td-comment-input');
@@ -1327,12 +1418,17 @@ service cloud.firestore {
       btn.disabled = true;
       registering = true;
       try {
-        const cred = await auth.createUserWithEmailAndPassword(indexToEmail(indexId), password);
+        const slug = indexSlug(indexId);
+        const existing = await db.collection('logins').doc(slug).get();
+        if (existing.exists) throw { code: 'auth/email-already-in-use' };
+        const loginEmail = newStudentEmail(indexId);
+        const cred = await auth.createUserWithEmailAndPassword(loginEmail, password);
         const profile = {
           role: 'student', firstName, lastName, name: `${firstName} ${lastName}`, indexId, studyYear,
-          googleEmail: '', driveRootFolderId: '', createdAt: Date.now()
+          authEmail: loginEmail, googleEmail: '', driveRootFolderId: '', createdAt: Date.now()
         };
         await db.collection('users').doc(cred.user.uid).set(profile);
+        await db.collection('logins').doc(slug).set({ email: loginEmail, uid: cred.user.uid, indexId });
         appState.justRegistered = true;
         registering = false;
         document.getElementById('student-register-form').reset();
@@ -1353,8 +1449,13 @@ service cloud.firestore {
       const btn = document.getElementById('btn-login-submit');
       btn.disabled = true;
       try {
-        await auth.signInWithEmailAndPassword(indexToEmail(indexId), password);
+        const loginEmail = await resolveLoginEmail(indexId);
+        const cred = await auth.signInWithEmailAndPassword(loginEmail, password);
         document.getElementById('login-pass').value = '';
+        // make sure the index -> email mapping exists (older accounts)
+        db.collection('logins').doc(indexSlug(indexId)).get().then(s => {
+          if (!s.exists) return db.collection('logins').doc(indexSlug(indexId)).set({ email: loginEmail, uid: cred.user.uid, indexId });
+        }).catch(() => {});
       } catch (err) {
         showAuthError(authErrMsg(err));
       } finally {
@@ -1596,8 +1697,8 @@ service cloud.firestore {
       document.getElementById('projects-heading').textContent = t('projectsHeading', stu.name, stu.studyYear || 1);
       const grid = document.getElementById('projects-grid');
       const allProjects = Array.isArray(stu.projects) ? stu.projects : [];
-      const archivedCount = allProjects.filter(p => p.archivedByStudent).length;
-      const list = allProjects.filter(p => !p.archivedByStudent || appState.showArchived);
+      const archivedCount = allProjects.filter(p => isArchivedFor(p, 'student')).length;
+      const list = allProjects.filter(p => !isArchivedFor(p, 'student') || appState.showArchived);
 
       if (list.length === 0) {
         grid.innerHTML = `
@@ -1614,11 +1715,11 @@ service cloud.firestore {
         const stats = computeProgressStats(proj);
         const finalGrade = (proj.grades && proj.grades.final) ? proj.grades.final : t('ungraded');
         return `
-          <div class="card" style="display:flex;flex-direction:column;justify-content:space-between;gap:14px;${proj.archivedByStudent ? 'opacity:.6' : ''}">
+          <div class="card" style="display:flex;flex-direction:column;justify-content:space-between;gap:14px;${isArchivedFor(proj, 'student') ? 'opacity:.6' : ''}">
             <div>
               <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
                 <div>
-                  <h3 style="margin:0;font-size:16px;font-weight:600">${escapeHtml(proj.name)}${proj.archivedByStudent ? ` <span class="badge">${escapeHtml(t('archivedLbl'))}</span>` : ''}</h3>
+                  <h3 style="margin:0;font-size:16px;font-weight:600">${escapeHtml(proj.name)}${isArchivedFor(proj, 'student') ? ` <span class="badge">${escapeHtml(proj.archivedByProf ? t('archivedByProfLbl') : t('archivedLbl'))}</span>` : ''}</h3>
                   <div class="brand-sub mono" style="margin-top:3px">${escapeHtml(proj.animationType)} · ${escapeHtml(proj.length)}</div>
                 </div>
                 <span class="badge ${proj.isPublic ? 'badge-public' : 'badge-private'}">
@@ -1738,6 +1839,9 @@ service cloud.firestore {
       const archBtn = document.getElementById('ws-archive-btn');
       const myArch = isProf ? proj.archivedByProf : proj.archivedByStudent;
       archBtn.textContent = myArch ? t('unarchiveBtn') : t('archiveBtn');
+      const lockedByProf = !isProf && Boolean(proj.archivedByProf);
+      archBtn.disabled = lockedByProf;
+      if (lockedByProf) archBtn.textContent = t('archivedByProfLbl');
 
       document.getElementById('ws-add-week-btn').classList.toggle('hidden', !editable);
       document.getElementById('ws-back-projects-btn').classList.toggle('hidden', !editable);
@@ -2039,14 +2143,17 @@ service cloud.firestore {
 
     function isArchivedFor(proj, role) {
       if (!proj) return false;
-      return role === 'professor' ? Boolean(proj.archivedByStudent || proj.archivedByProf) : Boolean(proj.archivedByStudent);
+      // archived by either side = archived for both (a professor's archive also lands in the student's archive)
+      return Boolean(proj.archivedByStudent || proj.archivedByProf);
     }
 
     function toggleArchiveProject() {
       const stu = getActiveStudent();
       const proj = getActiveProject(stu);
       if (!proj) return;
-      const key = appState.userType === 'professor' ? 'archivedByProf' : 'archivedByStudent';
+      const isProfUser = appState.userType === 'professor';
+      if (!isProfUser && proj.archivedByProf) { showToast(t('archivedByProfToast')); return; }
+      const key = isProfUser ? 'archivedByProf' : 'archivedByStudent';
       proj[key] = !proj[key];
       saveStudentsToStorage();
       showToast(t(proj[key] ? 'archivedToast' : 'unarchivedToast'));
@@ -2074,13 +2181,25 @@ service cloud.firestore {
       renderWorkspace();
     }
 
+    function notifyVisibilityChange(stu, proj) {
+      if (!db) return;
+      db.collection('notifs').add({
+        type: 'visibility', studentId: stu.id, studentName: stu.name || '', studentIndex: stu.indexId || '',
+        studentYear: Number(stu.studyYear) || 1, projectId: proj.id, projectName: proj.name || '',
+        isPublic: Boolean(proj.isPublic), ts: Date.now(), readBy: {}
+      }).catch(err => console.warn('visibility notif', err));
+    }
+
     function toggleProjectVisibility() {
       if (!canEditActiveProject()) return;
       const stu = getActiveStudent();
       const proj = getActiveProject(stu);
       if (!proj) return;
+      if (proj.isPublic && !window.confirm(t('goPrivateConfirm'))) return;
       proj.isPublic = !proj.isPublic;
       saveStudentsToStorage();
+      notifyVisibilityChange(stu, proj);
+      showToast(t(proj.isPublic ? 'nowPublicToast' : 'nowPrivateToast'));
       renderWorkspace();
     }
 
@@ -2367,6 +2486,7 @@ service cloud.firestore {
                       ${editable ? `<button type="button" class="btn btn-sm btn-danger" style="padding:2px 6px" onclick="deleteTaskMedia('${cat.id}', '${task.id}', ${idx})">✕</button>` : ''}
                     </div>
                     <div class="brand-sub mono" style="font-size:10px;color:#86efac">${escapeHtml(item.drivePath)}</div>
+                    ${mediaVersionRowHtml(cat.id, task.id, item, idx, editable)}
                   </div>
                 `).join('')}
               </div>`
@@ -2451,6 +2571,71 @@ service cloud.firestore {
       return `<video class="media-preview" src="${escapeHtml(item.url)}" preload="metadata" muted playsinline></video><div class="play-badge">▶</div>`;
     }
 
+    // ---- every media item keeps ALL its versions; top-level fields always mirror the newest one
+    function mediaSnapshot(item, ver) {
+      return {
+        ver, name: item.name || '', type: item.type || 'image', mimeType: item.mimeType || '',
+        driveFileId: item.driveFileId || '', webViewLink: item.webViewLink || '', thumbnailLink: item.thumbnailLink || '',
+        url: item.url || '', drivePath: item.drivePath || '', uploadedAt: item.uploadedAt || 0
+      };
+    }
+
+    function mediaVersions(item) {
+      if (Array.isArray(item.versions) && item.versions.length) return item.versions;
+      return [mediaSnapshot(item, 1)];   // older files without history = v1
+    }
+
+    function mediaVersionRowHtml(catId, taskId, item, idx, editable) {
+      const n = mediaVersions(item).length;
+      return `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px">
+        <button type="button" class="btn btn-sm" style="padding:2px 8px" title="${escapeHtml(t('versionsHint'))}" onclick="openLightbox('${catId}', '${taskId}', ${idx})">v${n}${n > 1 ? ' · ' + escapeHtml(t('versionsLbl', n)) : ''}</button>
+        ${editable ? `<label class="btn btn-sm btn-primary" style="cursor:pointer;padding:2px 8px">${escapeHtml(t('newVersionBtn'))}
+          <input type="file" accept="image/*,video/*" style="display:none" onchange="onUploadMediaVersion(event, '${catId}', '${taskId}', ${idx})" /></label>` : ''}
+      </div>`;
+    }
+
+    function onUploadMediaVersion(event, catId, taskId, idx) {
+      if (!canEditActiveProject()) return;
+      const file = (event.target.files || [])[0];
+      event.target.value = '';
+      if (!file) return;
+      let tokenP;
+      try { tokenP = getDriveToken(); } catch (err) { showToast(err.message); return; }  // sync: keeps the user gesture
+      const first = findTaskCtx(catId, taskId);
+      if (!first.proj || !first.task || !first.task.media || !first.task.media[idx]) return;
+      const targetId = first.task.media[idx].id;
+      const folderId = first.task.driveFolderId || first.proj.assetsFolderId;
+      if (!folderId) { showToast(t('noAssetsFolder')); return; }
+      (async () => {
+        try {
+          await tokenP;
+          showToast(t('uploading', 1));
+          const meta = await driveUpload(file, folderId);
+          const mime = meta.mimeType || file.type || '';
+          const ctx = findTaskCtx(catId, taskId);   // re-resolve: a snapshot may have replaced the objects
+          const item = ctx.task && (ctx.task.media || []).find(m => m.id === targetId);
+          if (!item) return;
+          const versions = mediaVersions(item).slice();
+          const ver = versions.length + 1;
+          const entry = {
+            ver, name: meta.name, type: mime.indexOf('video/') === 0 ? 'video' : 'image', mimeType: mime,
+            driveFileId: meta.id, webViewLink: meta.webViewLink || '', thumbnailLink: meta.thumbnailLink || '', url: '',
+            drivePath: `${ctx.proj.driveFolderPath}/Assets & Media/${meta.name}`, uploadedAt: Date.now()
+          };
+          versions.push(entry);
+          const { ver: _v, ...fields } = entry;
+          Object.assign(item, fields, { versions, currentVer: ver });
+          saveStudentsToStorage();
+          renderWorkspace();
+          openTaskModal(catId, taskId);
+          showToast(t('versionUploaded', ver));
+        } catch (err) {
+          console.error(err);
+          showToast(t('driveErr') + ' ' + err.message);
+        }
+      })();
+    }
+
     function onUploadTaskMedia(event, catId, taskId) {
       if (!canEditActiveProject()) return;
       const files = Array.from(event.target.files || []);
@@ -2490,6 +2675,9 @@ service cloud.firestore {
               drivePath: `${first.proj.driveFolderPath}/Assets & Media/${meta.name}`,
               uploadedAt: Date.now()
             });
+            const lastItem = uploaded[uploaded.length - 1];
+            lastItem.versions = [mediaSnapshot(lastItem, 1)];
+            lastItem.currentVer = 1;
           }
           // re-resolve: a snapshot may have replaced the objects while uploading
           const ctx = findTaskCtx(catId, taskId);
@@ -2513,12 +2701,16 @@ service cloud.firestore {
       const { task } = findTaskCtx(catId, taskId);
       if (!task || !Array.isArray(task.media)) return;
       const item = task.media[idx];
+      const allVersions = item ? mediaVersions(item) : [];
+      if (allVersions.length > 1 && !window.confirm(t('deleteAllVersionsConfirm', allVersions.length))) return;
       task.media.splice(idx, 1);
       saveStudentsToStorage();
       renderWorkspace();
       openTaskModal(catId, taskId);
-      if (item && item.driveFileId && driveTokenValid()) {
-        driveFetch(`${DRIVE_FILES}/${item.driveFileId}`, { method: 'DELETE' }).catch(err => console.warn('drive delete', err));
+      if (driveTokenValid()) {
+        allVersions.forEach(v => {
+          if (v.driveFileId) driveFetch(`${DRIVE_FILES}/${v.driveFileId}`, { method: 'DELETE' }).catch(err => console.warn('drive delete', err));
+        });
       }
     }
 
@@ -2577,9 +2769,15 @@ service cloud.firestore {
     function openLightbox(catId, taskId, idx) {
       const { task } = findTaskCtx(catId, taskId);
       if (!task || !task.media || !task.media[idx]) return;
-      lightboxState = { catId, taskId, idx };
+      lightboxState = { catId, taskId, idx, ver: null };
       renderLightbox();
       document.getElementById('lightbox').classList.remove('hidden');
+    }
+
+    function lightboxVersion(i) {
+      if (!lightboxState) return;
+      lightboxState.ver = i;
+      renderLightbox();
     }
 
     function renderLightbox() {
@@ -2588,19 +2786,27 @@ service cloud.firestore {
       const list = task ? (task.media || []) : [];
       const item = list[lightboxState.idx];
       if (!item) { closeLightbox(); return; }
+      const versions = mediaVersions(item);
+      let vi = lightboxState.ver;
+      if (vi === null || vi === undefined || vi < 0 || vi >= versions.length) vi = versions.length - 1;
+      const view = versions[vi];
       const stage = document.getElementById('lb-stage');
-      if (item.type === 'video') {
-        stage.innerHTML = item.driveFileId
-          ? `<iframe src="https://drive.google.com/file/d/${encodeURIComponent(item.driveFileId)}/preview" allow="autoplay; fullscreen" allowfullscreen></iframe>`
-          : `<video src="${escapeHtml(item.url)}" controls autoplay playsinline></video>`;
+      if (view.type === 'video') {
+        stage.innerHTML = view.driveFileId
+          ? `<iframe src="https://drive.google.com/file/d/${encodeURIComponent(view.driveFileId)}/preview" allow="autoplay; fullscreen" allowfullscreen></iframe>`
+          : `<video src="${escapeHtml(view.url)}" controls autoplay playsinline></video>`;
       } else {
-        stage.innerHTML = `<img src="${escapeHtml(mediaThumbUrl(item, 2400))}" alt="${escapeHtml(item.name)}" />`;
+        stage.innerHTML = `<img src="${escapeHtml(mediaThumbUrl(view, 2400))}" alt="${escapeHtml(view.name)}" />`;
       }
-      const driveUrl = mediaDriveUrl(item);
+      const driveUrl = mediaDriveUrl(view);
       document.getElementById('lb-open-drive').innerHTML = driveUrl
         ? `<a href="${escapeHtml(driveUrl)}" target="_blank" rel="noopener" style="color:inherit">${escapeHtml(t('openOnDrive'))} ↗</a>` : '';
-      document.getElementById('lb-caption').textContent =
-        `${item.name}  ·  ${lightboxState.idx + 1} / ${list.length}`;
+      const when = view.uploadedAt ? new Date(view.uploadedAt).toLocaleDateString([], { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+      const chips = versions.length > 1
+        ? `<div style="margin-top:6px">${versions.map((v, i) => `<button type="button" class="lb-ver ${i === vi ? 'active' : ''}" onclick="event.stopPropagation();lightboxVersion(${i})">v${i + 1}</button>`).join('')}</div>`
+        : '';
+      document.getElementById('lb-caption').innerHTML =
+        `${escapeHtml(view.name)}  ·  v${vi + 1}/${versions.length}${when ? '  ·  ' + escapeHtml(when) : ''}  ·  ${lightboxState.idx + 1} / ${list.length}${chips}`;
       const multi = list.length > 1;
       document.getElementById('lb-prev').style.display = multi ? '' : 'none';
       document.getElementById('lb-next').style.display = multi ? '' : 'none';
@@ -2612,6 +2818,7 @@ service cloud.firestore {
       const n = task && task.media ? task.media.length : 0;
       if (n === 0) return;
       lightboxState.idx = (lightboxState.idx + delta + n) % n;
+      lightboxState.ver = null;
       renderLightbox();
     }
 
@@ -2663,21 +2870,88 @@ service cloud.firestore {
       if (isOpen) openInbox.add(key); else openInbox.delete(key);
     }
 
-    function inboxGroupsHtml(groups, scope) {
+    function yearOfStudent(stu) { return Number(stu && stu.studyYear) || 1; }
+
+    // privacy notices: latest unread one per project
+    function collectVisNotifs(profId, studentList) {
+      const allowed = new Set((studentList || studentsData).map(s => s.id));
+      const latest = {};
+      visNotifs.forEach(n => {           // newest first
+        if (n.type !== 'visibility' || !allowed.has(n.studentId) || latest[n.projectId]) return;
+        latest[n.projectId] = n;
+      });
+      return Object.values(latest).filter(n => !(n.readBy && n.readBy[profId]));
+    }
+
+    function markVisNotifRead(projectId) {
+      const me = appState.currentUser && appState.currentUser.id;
+      if (!me) return;
+      visNotifs.filter(n => n.projectId === projectId && !(n.readBy && n.readBy[me])).forEach(n => {
+        n.readBy = { ...(n.readBy || {}), [me]: true };
+        db.collection('notifs').doc(n.id).update({ ['readBy.' + me]: true }).catch(err => console.warn('notif read', err));
+      });
+      refreshInboxViews();
+    }
+
+    function markAllVisRead() {
+      const me = appState.currentUser && appState.currentUser.id;
+      if (!me) return;
+      collectVisNotifs(me).forEach(n => markVisNotifRead(n.projectId));
+    }
+
+    function setInboxFilter(f) {
+      appState.inboxFilter = f;
+      refreshInboxViews();
+    }
+
+    function refreshInboxViews() {
+      const dash = document.getElementById('professor-screen');
+      if (dash && !dash.classList.contains('hidden')) renderProfessorDashboard(); else updateNotifBell();
+    }
+
+    function openNotifProject(studentId, projectId) {
+      const stu = studentsData.find(s => s.id === studentId);
+      if (!stu || !(stu.projects || []).some(p => p.id === projectId)) return;
+      document.getElementById('notif-panel').classList.add('hidden');
+      inspectStudentProject(studentId, projectId);
+    }
+
+    function visRowHtml(n) {
+      const d = new Date(n.ts || Date.now());
+      const when = d.toLocaleDateString([], { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return `
+        <div class="inbox-row">
+          <div><span class="new-dot"></span><span class="badge ${n.isPublic ? 'badge-public' : 'badge-private'}">${escapeHtml(t(n.isPublic ? 'publicLbl' : 'privateLbl'))}</span>
+            <strong>${escapeHtml(n.studentName)}</strong> — ${escapeHtml(n.projectName)}
+            <div class="brand-sub" style="margin-top:2px">${escapeHtml(t(n.isPublic ? 'visNotifPublic' : 'visNotifPrivate'))} · ${escapeHtml(when)}</div></div>
+          <div style="display:flex;gap:6px;flex-shrink:0">
+            ${n.isPublic ? `<button type="button" class="btn btn-primary btn-sm" onclick="event.stopPropagation();openNotifProject('${n.studentId}', '${n.projectId}')">${escapeHtml(t('openTaskBtn'))}</button>` : ''}
+            <button type="button" class="btn btn-sm" onclick="event.stopPropagation();markVisNotifRead('${n.projectId}')">${escapeHtml(t('markReadBtn'))}</button>
+          </div>
+        </div>`;
+    }
+
+    function inboxGroupsHtml(groups, scope, filter) {
+      const f = filter || 'all';
+      const showA = f === 'all' || f === 'approvals';
+      const showQ = f === 'all' || f === 'questions';
       return groups.map(g => {
+        const approvals = showA ? g.approvals : [];
+        const questions = showQ ? g.questions : [];
+        if (!approvals.length && !questions.length) return '';
         const key = scope + ':' + g.proj.id;
         const badges = [
-          g.approvals.length ? `<span class="badge badge-review">${ic('hourglass')} ${escapeHtml(t('inboxApprovals', g.approvals.length))}</span>` : '',
-          g.questions.length ? `<span class="q-badge">${ic('question')} ${escapeHtml(t('inboxQuestions', g.questions.length))}</span>` : ''
+          approvals.length ? `<span class="badge badge-review">${ic('hourglass')} ${escapeHtml(t('inboxApprovals', approvals.length))}</span>` : '',
+          questions.length ? `<span class="q-badge">${ic('question')} ${escapeHtml(t('inboxQuestions', questions.length))}</span>` : ''
         ].join(' ');
         const open = (stuId, projId, catId, tkId) => `openQuestionTask('${stuId}', '${projId}', '${catId}', '${tkId}')`;
         const rows = [
-          ...g.approvals.map(a => `
+          ...approvals.map(a => `
             <div class="inbox-row">
               <div>${ic('hourglass')} ${escapeHtml(getCategoryDisplayName(a.cat))} / <strong>${escapeHtml(getTaskDisplayName(a.tk))}</strong></div>
               <button type="button" class="btn btn-primary btn-sm" onclick="${open(g.stu.id, g.proj.id, a.cat.id, a.tk.id)}">${escapeHtml(t('openTaskBtn'))}</button>
             </div>`),
-          ...g.questions.map(q => {
+          ...questions.map(q => {
             const snippet = q.c.text.length > 80 ? q.c.text.slice(0, 80) + '…' : q.c.text;
             return `
             <div class="inbox-row">
@@ -2690,14 +2964,44 @@ service cloud.firestore {
         return `
           <details class="inbox-group" ${openInbox.has(key) ? 'open' : ''} ontoggle="toggleInboxGroup('${key}', this.open)">
             <summary>
-              <span>${g.unread ? '<span class="new-dot"></span>' : ''}<strong>${escapeHtml(g.stu.name)}</strong>
-                <span class="brand-sub mono">(${escapeHtml(g.stu.indexId)} · ${escapeHtml(t('yearShort', g.stu.studyYear || 1))})</span>
+              <span>${g.unread && showQ ? '<span class="new-dot"></span>' : ''}<strong>${escapeHtml(g.stu.name)}</strong>
+                <span class="brand-sub mono">(${escapeHtml(g.stu.indexId)})</span>
                 — ${escapeHtml(g.proj.name)}</span>
               <span>${badges}</span>
             </summary>
             <div class="inbox-items">${rows}</div>
           </details>`;
       }).join('');
+    }
+
+    // whole notification area: type filter chips -> year sections -> project groups / privacy notices
+    function inboxHtml(groups, vis, scope) {
+      const f = appState.inboxFilter || 'all';
+      const counts = {
+        questions: groups.reduce((n, g) => n + g.questions.length, 0),
+        approvals: groups.reduce((n, g) => n + g.approvals.length, 0),
+        privacy: vis.length
+      };
+      const total = counts.questions + counts.approvals + counts.privacy;
+      const chip = (key, label, n) => `<button type="button" class="chip ${f === key ? 'active' : ''}" onclick="event.stopPropagation();setInboxFilter('${key}')">${escapeHtml(label)} <span class="mono">${n}</span></button>`;
+      const filters = `<div class="inbox-filters">${chip('all', t('inboxAll'), total)}${chip('questions', t('inboxFQuestions'), counts.questions)}${chip('approvals', t('inboxFApprovals'), counts.approvals)}${chip('privacy', t('inboxFPrivacy'), counts.privacy)}</div>`;
+
+      const byYear = {};
+      const slot = y => (byYear[y] = byYear[y] || { groups: [], vis: [] });
+      groups.forEach(g => slot(yearOfStudent(g.stu)).groups.push(g));
+      vis.forEach(n => { const p = studentProfiles[n.studentId]; slot(Number(p ? p.studyYear : n.studentYear) || 1).vis.push(n); });
+      const showVis = f === 'all' || f === 'privacy';
+
+      let body = Object.keys(byYear).map(Number).sort((x, y) => x - y).map(y => {
+        const gHtml = inboxGroupsHtml(byYear[y].groups, scope, f);
+        const vHtml = showVis ? byYear[y].vis.map(visRowHtml).join('') : '';
+        if (!gHtml && !vHtml) return '';
+        return `<div class="inbox-year"><div class="inbox-year-title">${escapeHtml(t('yearShort', y))}</div>${gHtml}${vHtml ? `<div class="inbox-items" style="padding:0 0 6px">${vHtml}</div>` : ''}</div>`;
+      }).join('');
+      if (!body) body = `<div class="brand-sub">${escapeHtml(t('noNotifs'))}</div>`;
+      const markAll = (showVis && vis.length > 1)
+        ? `<div style="margin-top:6px"><button type="button" class="btn btn-sm" onclick="event.stopPropagation();markAllVisRead()">${escapeHtml(t('markAllRead'))}</button></div>` : '';
+      return filters + body + markAll;
     }
 
     function updateNotifBell() {
@@ -2709,15 +3013,17 @@ service cloud.firestore {
       }
       wrap.classList.remove('hidden');
       const groups = collectProfInbox(appState.currentUser.id);
+      const vis = collectVisNotifs(appState.currentUser.id);
+      const n = groups.length + vis.length;
       const badge = document.getElementById('notif-badge');
-      badge.textContent = groups.length;
-      badge.classList.toggle('hidden', groups.length === 0);
-      document.getElementById('notif-btn').classList.toggle('has-new', groups.some(g => g.unread));
+      badge.textContent = n;
+      badge.classList.toggle('hidden', n === 0);
+      document.getElementById('notif-btn').classList.toggle('has-new', vis.length > 0 || groups.some(g => g.unread));
       document.getElementById('notif-btn').title = t('inboxTitle');
 
       document.getElementById('notif-panel').innerHTML = `
-        <div class="field-label" style="margin:0 0 8px">${escapeHtml(t('inboxTitle'))} (${groups.length})</div>
-        ${groups.length === 0 ? `<div class="brand-sub">${escapeHtml(t('noNotifs'))}</div>` : inboxGroupsHtml(groups, 'bell')}
+        <div class="field-label" style="margin:0 0 8px">${escapeHtml(t('inboxTitle'))} (${n})</div>
+        ${inboxHtml(groups, vis, 'bell')}
       `;
     }
 
@@ -2740,97 +3046,161 @@ service cloud.firestore {
     /* =========================================================================
        13. PROFESSOR DASHBOARD (BY STUDY YEAR 1-4), APPROVAL QUEUE & GRADING
        ========================================================================= */
+    const closedYearSections = new Set();
+    function toggleYearSection(key, isOpen) {
+      if (isOpen) closedYearSections.delete(key); else closedYearSections.add(key);
+    }
+
+    function profToggleArchive(studentId, projectId) {
+      if (appState.userType !== 'professor') return;
+      const stu = studentsData.find(s => s.id === studentId);
+      const proj = stu && (stu.projects || []).find(p => p.id === projectId);
+      if (!proj) return;
+      proj.archivedByProf = !proj.archivedByProf;
+      persistProject(normalizeProject(proj), studentId);
+      showToast(t(proj.archivedByProf ? 'archivedToast' : 'unarchivedToast'));
+      renderProfessorDashboard();
+    }
+
+    function profProjectCardHtml(stu, rawProj) {
+      const proj = normalizeProject(rawProj);
+      const stats = computeProgressStats(proj);
+      const finalGrade = (proj.grades && proj.grades.final) ? proj.grades.final : t('ungraded');
+      const archived = isArchivedFor(proj, 'professor');
+      let archiveCtl;
+      if (proj.archivedByProf) archiveCtl = `<button type="button" class="btn btn-sm" onclick="profToggleArchive('${stu.id}', '${proj.id}')">${escapeHtml(t('unarchiveBtn'))}</button>`;
+      else if (proj.archivedByStudent) archiveCtl = `<span class="badge">${escapeHtml(t('archivedByStudentLbl'))}</span>`;
+      else archiveCtl = `<button type="button" class="btn btn-sm" onclick="profToggleArchive('${stu.id}', '${proj.id}')">${escapeHtml(t('archiveBtn'))}</button>`;
+
+      return `
+        <div class="card" style="display:flex;flex-direction:column;justify-content:space-between;gap:14px;${archived ? 'opacity:.75' : ''}">
+          <div>
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+              <div>
+                <h3 style="margin:0;font-size:15px;font-weight:600">${escapeHtml(stu.name)}</h3>
+                <div class="brand-sub mono">${escapeHtml(stu.indexId)} · ${escapeHtml(t('yearShort', yearOfStudent(stu)))}</div>
+              </div>
+              <span class="badge badge-public">${escapeHtml(t('publicLbl'))}</span>
+            </div>
+
+            <div class="brand-sub" style="margin-top:10px">${escapeHtml(proj.name)}</div>
+            <div class="brand-sub mono" style="margin-top:2px;color:#93c5fd">${escapeHtml(proj.driveFolderPath)}</div>
+
+            <div style="margin-top:10px">
+              <div style="display:flex;justify-content:space-between;font-size:11px">
+                <span style="color:var(--text-secondary)">${escapeHtml(t('approvedProgressLbl'))} (${stats.approved}/${stats.total})</span>
+                <span class="mono" style="color:#86efac">${stats.approvedPct}%</span>
+              </div>
+              <div class="progress-track">
+                <div class="progress-fill-approved" style="width:${stats.approvedPct}%"></div>
+                <div class="progress-fill-review" style="width:${stats.reviewPct}%"></div>
+              </div>
+              ${stats.review > 0 ? `<div style="margin-top:6px"><span class="badge badge-review">${escapeHtml(t('waitingBadge', stats.review))}</span></div>` : ''}
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--border-subtle)">
+            <span class="brand-sub mono">${escapeHtml(t('gradeLbl'))}: <strong style="color:var(--text-primary)">${escapeHtml(finalGrade)}</strong></span>
+            <span style="display:flex;gap:6px;align-items:center">
+              ${archiveCtl}
+              <button type="button" class="btn btn-primary btn-sm" onclick="inspectStudentProject('${stu.id}', '${proj.id}')">${escapeHtml(t('inspectStudentBtn'))}</button>
+            </span>
+          </div>
+        </div>`;
+    }
+
+    function profEmptyStudentCardHtml(stu) {
+      return `
+        <div class="card" style="display:flex;flex-direction:column;gap:6px">
+          <h3 style="margin:0;font-size:15px;font-weight:600">${escapeHtml(stu.name)}</h3>
+          <div class="brand-sub mono">${escapeHtml(stu.indexId)} · ${escapeHtml(t('yearShort', yearOfStudent(stu)))}</div>
+          <div class="brand-sub" style="margin-top:6px">${escapeHtml(t('noPublicProjects'))}</div>
+        </div>`;
+    }
+
     function renderProfessorDashboard() {
+      const profId = appState.currentUser ? appState.currentUser.id : '';
+      const allGroups = collectProfInbox(profId);
+      const allVis = collectVisNotifs(profId);
+      const pendingByYear = {};
+      allGroups.forEach(g => { const y = yearOfStudent(g.stu); pendingByYear[y] = (pendingByYear[y] || 0) + g.approvals.length + g.questions.length; });
+      allVis.forEach(n => { const p = studentProfiles[n.studentId]; const y = Number(p ? p.studyYear : n.studentYear) || 1; pendingByYear[y] = (pendingByYear[y] || 0) + 1; });
+      const pendingAll = Object.values(pendingByYear).reduce((s, n) => s + n, 0);
+
       const years = ['ALL', '1', '2', '3', '4'];
       const tabsWrap = document.getElementById('prof-year-tabs');
-
       tabsWrap.innerHTML = years.map(y => {
         const active = appState.profYearFilter === y;
         const label = y === 'ALL' ? t('allYears') : t('yearShort', y);
+        const n = y === 'ALL' ? pendingAll : (pendingByYear[Number(y)] || 0);
         return `
           <button type="button" class="btn btn-sm ${active ? 'btn-primary' : ''}" onclick="selectProfYear('${y}')">
-            ${escapeHtml(label)}
+            ${escapeHtml(label)}${n ? ` <span class="notif-badge" style="position:static;display:inline-block;margin-left:4px">${n}</span>` : ''}
           </button>
         `;
       }).join('');
 
       const filteredStudents = appState.profYearFilter === 'ALL'
         ? studentsData
-        : studentsData.filter(s => String(s.studyYear || 1) === appState.profYearFilter);
+        : studentsData.filter(s => String(yearOfStudent(s)) === appState.profYearFilter);
 
-      // Inbox: ONE entry per project (pending approvals + questions); disappears when resolved
+      // Notifications: type filter -> year -> project
       const queueBox = document.getElementById('prof-approval-queue');
-      const groups = collectProfInbox(appState.currentUser ? appState.currentUser.id : '', filteredStudents);
-      if (groups.length > 0) {
+      const groups = collectProfInbox(profId, filteredStudents);
+      const vis = collectVisNotifs(profId, filteredStudents);
+      const nTotal = groups.length + vis.length;
+      if (nTotal > 0) {
         queueBox.classList.remove('hidden');
         queueBox.innerHTML = `
-          <h3 style="margin:0 0 10px;font-size:14px;font-weight:600;color:#fcd34d">${ic('inbox')} ${escapeHtml(t('inboxTitle'))} (${groups.length})</h3>
-          ${inboxGroupsHtml(groups, 'dash')}
+          <h3 style="margin:0 0 10px;font-size:14px;font-weight:600;color:#fcd34d">${ic('inbox')} ${escapeHtml(t('inboxTitle'))} (${nTotal})</h3>
+          ${inboxHtml(groups, vis, 'dash')}
         `;
       } else {
         queueBox.classList.add('hidden');
       }
       updateNotifBell();
 
-      // Render students grid for chosen study year
+      // Students grouped by study year (one card per project, archived ones in their own section)
       const grid = document.getElementById('prof-students-grid');
       if (filteredStudents.length === 0) {
         grid.innerHTML = `
-          <div class="card" style="grid-column:1/-1;text-align:center;color:var(--text-secondary)">
+          <div class="card" style="text-align:center;color:var(--text-secondary)">
             ${escapeHtml(t('noStudentsYear'))}
           </div>
         `;
         return;
       }
 
-      grid.innerHTML = filteredStudents.map(stu => {
-        const visProj = (stu.projects || []).find(p => !isArchivedFor(p, 'professor'));
-        const proj = visProj ? normalizeProject(visProj) : null;
-        const stats = computeProgressStats(proj);
-        const finalGrade = (proj && proj.grades && proj.grades.final) ? proj.grades.final : t('ungraded');
-
+      const yearKeys = [...new Set(filteredStudents.map(yearOfStudent))].sort((x, y) => x - y);
+      grid.innerHTML = yearKeys.map(y => {
+        const studs = filteredStudents.filter(s => yearOfStudent(s) === y).sort((p, q) => (p.name || '').localeCompare(q.name || ''));
+        const cards = [], archived = [];
+        studs.forEach(stu => {
+          const projs = stu.projects || [];
+          const live = projs.filter(p => !isArchivedFor(p, 'professor'));
+          const arch = projs.filter(p => isArchivedFor(p, 'professor'));
+          if (!projs.length) cards.push(profEmptyStudentCardHtml(stu));
+          live.forEach(p => cards.push(profProjectCardHtml(stu, p)));
+          arch.forEach(p => archived.push(profProjectCardHtml(stu, p)));
+        });
+        const key = 'y' + y;
+        const archKey = 'arch' + y;
+        const pend = pendingByYear[y] || 0;
         return `
-          <div class="card" style="display:flex;flex-direction:column;justify-content:space-between;gap:14px">
-            <div>
-              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
-                <div>
-                  <h3 style="margin:0;font-size:15px;font-weight:600">${escapeHtml(stu.name)}</h3>
-                  <div class="brand-sub mono">${escapeHtml(stu.indexId)} · ${escapeHtml(t('yearShort', stu.studyYear || 1))}</div>
-                </div>
-                <span class="badge ${proj && proj.isPublic ? 'badge-public' : 'badge-private'}">
-                  ${proj ? (proj.isPublic ? t('publicLbl') : t('privateLbl')) : '—'}
-                </span>
-              </div>
-
-              <div class="brand-sub" style="margin-top:10px">
-                ${proj ? escapeHtml(proj.name) : '—'}
-              </div>
-              <div class="brand-sub mono" style="margin-top:2px;color:#93c5fd">
-                ${proj ? escapeHtml(proj.driveFolderPath) : 'Animation Pipeline'}
-              </div>
-
-              <div style="margin-top:10px">
-                <div style="display:flex;justify-content:space-between;font-size:11px">
-                  <span style="color:var(--text-secondary)">${escapeHtml(t('approvedProgressLbl'))} (${stats.approved}/${stats.total})</span>
-                  <span class="mono" style="color:#86efac">${stats.approvedPct}%</span>
-                </div>
-                <div class="progress-track">
-                  <div class="progress-fill-approved" style="width:${stats.approvedPct}%"></div>
-                  <div class="progress-fill-review" style="width:${stats.reviewPct}%"></div>
-                </div>
-                ${stats.review > 0 ? `<div style="margin-top:6px"><span class="badge badge-review">${escapeHtml(t('waitingBadge', stats.review))}</span></div>` : ''}
-              </div>
+          <details class="year-section" ${closedYearSections.has(key) ? '' : 'open'} ontoggle="toggleYearSection('${key}', this.open)">
+            <summary>
+              <span><strong>${escapeHtml(t('yearShort', y))}</strong> <span class="brand-sub mono">(${escapeHtml(t('studentsCount', studs.length))})</span></span>
+              <span>${pend ? `<span class="badge badge-review">${pend}</span>` : ''}</span>
+            </summary>
+            <div class="year-body">
+              ${cards.length ? `<div class="grid-3">${cards.join('')}</div>` : ''}
+              ${archived.length ? `
+                <details class="inbox-group" style="margin-top:12px" ${openInbox.has(archKey) ? 'open' : ''} ontoggle="toggleInboxGroup('${archKey}', this.open)">
+                  <summary><span>${escapeHtml(t('archivedSection', archived.length))}</span></summary>
+                  <div class="inbox-items"><div class="grid-3">${archived.join('')}</div></div>
+                </details>` : ''}
             </div>
-
-            <div style="display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid var(--border-subtle)">
-              <span class="brand-sub mono">${escapeHtml(t('gradeLbl'))}: <strong style="color:var(--text-primary)">${escapeHtml(finalGrade)}</strong></span>
-              ${proj
-                ? `<button type="button" class="btn btn-primary btn-sm" onclick="inspectStudentProject('${stu.id}', '${proj.id}')">${escapeHtml(t('inspectStudentBtn'))}</button>`
-                : `<span class="brand-sub">—</span>`
-              }
-            </div>
-          </div>
-        `;
+          </details>`;
       }).join('');
     }
 
@@ -2909,6 +3279,7 @@ service cloud.firestore {
         closeModal('admin-gate-modal');
         appState.adminOpen = true;
         adminTplDraft = JSON.parse(JSON.stringify(getTemplate()));
+        startAdminListeners();
         renderAll();
       } else {
         const box = document.getElementById('ag-error');
@@ -2919,6 +3290,7 @@ service cloud.firestore {
 
     function closeSettings() {
       appState.adminOpen = false;
+      stopAdminListeners();
       adminTplDraft = null;
       renderAll();
     }
@@ -2938,8 +3310,210 @@ service cloud.firestore {
       document.getElementById('settings-tpl-sub').textContent = t('tplSub');
       document.getElementById('btn-tpl-reset').textContent = t('tplReset');
       document.getElementById('btn-tpl-save').textContent = t('tplSave');
+      document.getElementById('settings-stu-title').textContent = t('settingsStuTitle');
+      document.getElementById('settings-stu-sub').textContent = t('settingsStuSub');
+      document.getElementById('stu-search').placeholder = t('stuSearchPh');
+      document.getElementById('as-title').textContent = t('stuEditTitle');
+      document.getElementById('lbl-as-fname').textContent = t('firstName');
+      document.getElementById('lbl-as-lname').textContent = t('lastName');
+      document.getElementById('lbl-as-index').textContent = t('indexId');
+      document.getElementById('lbl-as-year').textContent = t('studyYear');
+      document.getElementById('btn-as-submit').textContent = t('stuSaveBtn');
       renderSettingsProfessors();
+      renderSettingsStudents();
       renderTemplateEditor();
+    }
+
+    /* ---- admin: students (view, edit, new password, delete) ---- */
+    function startAdminListeners() {
+      stopAdminListeners();
+      if (!db) return;
+      adminUnsubs.push(db.collection('users').where('role', '==', 'student').onSnapshot(snap => {
+        adminStudents = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+        if (!adminBackfilled) { adminBackfilled = true; backfillLogins(); }
+        if (appState.adminOpen) renderSettingsStudents();
+      }, err => { console.error('admin students', err); showToast(authErrMsg(err)); }));
+      adminUnsubs.push(db.collection('projects').onSnapshot(snap => {
+        adminProjects = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+        if (appState.adminOpen) renderSettingsStudents();
+      }, err => console.error('admin projects', err)));
+    }
+
+    function stopAdminListeners() {
+      adminUnsubs.forEach(fn => { try { fn(); } catch (e) {} });
+      adminUnsubs = [];
+      adminStudents = [];
+      adminProjects = [];
+    }
+
+    // older accounts log in with <index>@students.animpipe.app — record that in the logins collection once
+    async function backfillLogins() {
+      for (const s of adminStudents) {
+        if (s.authEmail || !s.indexId) continue;
+        try {
+          const ref = db.collection('logins').doc(indexSlug(s.indexId));
+          const snap = await ref.get();
+          if (!snap.exists) await ref.set({ email: indexToEmail(s.indexId), uid: s.id, indexId: s.indexId });
+        } catch (e) { console.warn('backfill logins', e); }
+      }
+    }
+
+    function adminStuSearch(v) { adminStuQuery = v || ''; renderSettingsStudents(); }
+
+    function adminStudentRowHtml(s) {
+      const projs = adminProjects.filter(p => p.studentId === s.id);
+      const projHtml = projs.length ? projs.map(p => {
+        const st = computeProgressStats(normalizeProject(p));
+        const arch = p.archivedByProf ? t('archivedByProfLbl') : (p.archivedByStudent ? t('archivedLbl') : '');
+        return `<span class="badge" style="display:inline-flex;align-items:center;gap:6px;padding:3px 8px">
+          ${escapeHtml(p.name)} · ${escapeHtml(t(p.isPublic ? 'publicLbl' : 'privateLbl'))}${arch ? ' · ' + escapeHtml(arch) : ''} · ${st.approvedPct}%
+          <button type="button" title="${escapeHtml(t('stuDeleteBtn'))}" style="background:none;border:0;padding:0;color:inherit;cursor:pointer;font-size:14px;line-height:1" onclick="adminDeleteProject('${p.id}')">×</button></span>`;
+      }).join('') : `<span class="brand-sub">${escapeHtml(t('noProjectsYet'))}</span>`;
+      return `
+        <div class="prof-card" style="flex-direction:column;align-items:stretch;gap:8px;margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+            <div>
+              <div style="font-weight:600;font-size:14px">${escapeHtml(s.name)}</div>
+              <div class="brand-sub mono">${escapeHtml(s.indexId)}${s.googleEmail ? ' · ' + escapeHtml(s.googleEmail) : ''}</div>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button type="button" class="btn btn-sm" onclick="adminOpenStudentEdit('${s.id}')">${escapeHtml(t('stuEditBtn'))}</button>
+              <button type="button" class="btn btn-sm" onclick="adminSetStudentPassword('${s.id}')">${escapeHtml(t('stuPassBtn'))}</button>
+              <button type="button" class="btn btn-sm btn-danger" onclick="adminDeleteStudent('${s.id}')">✕ ${escapeHtml(t('stuDeleteBtn'))}</button>
+            </div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">${projHtml}</div>
+        </div>`;
+    }
+
+    function renderSettingsStudents() {
+      const box = document.getElementById('settings-students');
+      if (!box) return;
+      const q = adminStuQuery.trim().toLowerCase();
+      const list = adminStudents.filter(s => !q || String(s.name || '').toLowerCase().includes(q) || String(s.indexId || '').toLowerCase().includes(q));
+      document.getElementById('settings-stu-count').textContent = adminStudents.length;
+      if (!list.length) { box.innerHTML = `<div class="brand-sub">${escapeHtml(t('noStudentsAdmin'))}</div>`; return; }
+      const years = [...new Set(list.map(yearOfStudent))].sort((x, y) => x - y);
+      box.innerHTML = years.map(y => {
+        const studs = list.filter(s => yearOfStudent(s) === y).sort((p, r) => (p.name || '').localeCompare(r.name || ''));
+        const key = 'a' + y;
+        return `
+          <details class="year-section" ${closedYearSections.has(key) ? '' : 'open'} ontoggle="toggleYearSection('${key}', this.open)">
+            <summary><span><strong>${escapeHtml(t('yearShort', y))}</strong> <span class="brand-sub mono">(${escapeHtml(t('studentsCount', studs.length))})</span></span></summary>
+            <div class="year-body">${studs.map(adminStudentRowHtml).join('')}</div>
+          </details>`;
+      }).join('');
+    }
+
+    function adminOpenStudentEdit(uid) {
+      const s = adminStudents.find(x => x.id === uid);
+      if (!s) return;
+      document.getElementById('as-uid').value = uid;
+      document.getElementById('as-fname').value = s.firstName || (s.name || '').split(' ')[0] || '';
+      document.getElementById('as-lname').value = s.lastName || (s.name || '').split(' ').slice(1).join(' ') || '';
+      document.getElementById('as-index').value = s.indexId || '';
+      document.getElementById('as-year').value = String(yearOfStudent(s));
+      document.getElementById('as-error').classList.add('hidden');
+      document.getElementById('admin-student-modal').classList.remove('hidden');
+    }
+
+    async function adminSaveStudent(e) {
+      e.preventDefault();
+      const uid = document.getElementById('as-uid').value;
+      const s = adminStudents.find(x => x.id === uid);
+      if (!s) return;
+      const firstName = document.getElementById('as-fname').value.trim();
+      const lastName = document.getElementById('as-lname').value.trim();
+      const indexId = document.getElementById('as-index').value.trim();
+      const studyYear = Number(document.getElementById('as-year').value) || 1;
+      if (!firstName || !lastName || !indexId) return;
+      const errBox = document.getElementById('as-error');
+      const btn = document.getElementById('btn-as-submit');
+      btn.disabled = true;
+      try {
+        const oldSlug = indexSlug(s.indexId), newSlug = indexSlug(indexId);
+        if (newSlug !== oldSlug) {
+          const ex = await db.collection('logins').doc(newSlug).get();
+          if (ex.exists && ex.data().uid !== uid) { errBox.textContent = t('dupIndexErr'); errBox.classList.remove('hidden'); return; }
+        }
+        const oldRef = db.collection('logins').doc(oldSlug);
+        const oldLogin = await oldRef.get();
+        const loginEmail = (oldLogin.exists && oldLogin.data().email) || s.authEmail || indexToEmail(s.indexId);
+        const batch = db.batch();
+        batch.update(db.collection('users').doc(uid), { firstName, lastName, name: `${firstName} ${lastName}`, indexId, studyYear });
+        if (newSlug !== oldSlug && oldLogin.exists && oldLogin.data().uid === uid) batch.delete(oldRef);
+        batch.set(db.collection('logins').doc(newSlug), { email: loginEmail, uid, indexId });
+        await batch.commit();
+        closeModal('admin-student-modal');
+        showToast(t('stuSaved'));
+      } catch (err) {
+        console.error(err);
+        errBox.textContent = authErrMsg(err);
+        errBox.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // The client SDK cannot change another user's password, so the student gets a NEW sign-in account with the new
+    // password; the profile and all projects are moved onto it (same name / index / year / projects).
+    async function adminSetStudentPassword(uid) {
+      const s = adminStudents.find(x => x.id === uid);
+      if (!s) return;
+      const pass = window.prompt(t('stuNewPassPrompt', s.name), '');
+      if (pass === null) return;
+      if (pass.length < 6) { showToast(t('weakPassErr')); return; }
+      try {
+        if (!secondaryApp) secondaryApp = firebase.initializeApp(FIREBASE_CONFIG, 'secondary');
+        const sAuth = secondaryApp.auth();
+        const email2 = newStudentEmail(s.indexId);
+        const cred = await sAuth.createUserWithEmailAndPassword(email2, pass);
+        const newUid = cred.user.uid;
+        const profile = { ...s };
+        delete profile.id;
+        profile.authEmail = email2;
+        profile.passwordResetAt = Date.now();
+        await secondaryApp.firestore().collection('users').doc(newUid).set(profile);
+        await sAuth.signOut();
+
+        const snap = await db.collection('projects').where('studentId', '==', uid).get();
+        const batch = db.batch();
+        snap.docs.forEach(d => batch.update(d.ref, { studentId: newUid }));
+        batch.set(db.collection('logins').doc(indexSlug(s.indexId)), { email: email2, uid: newUid, indexId: s.indexId });
+        batch.delete(db.collection('users').doc(uid));
+        await batch.commit();
+        showToast(t('stuPassDone', s.name));
+      } catch (err) {
+        console.error(err);
+        showToast(authErrMsg(err));
+      }
+    }
+
+    async function adminDeleteStudent(uid) {
+      const s = adminStudents.find(x => x.id === uid);
+      if (!s) return;
+      const pc = adminProjects.filter(p => p.studentId === uid).length;
+      if (!window.confirm(t('stuDeleteConfirm', s.name, pc))) return;
+      try {
+        const snap = await db.collection('projects').where('studentId', '==', uid).get();
+        const lg = await db.collection('logins').doc(indexSlug(s.indexId)).get();
+        const batch = db.batch();
+        snap.docs.forEach(d => batch.delete(d.ref));
+        batch.delete(db.collection('users').doc(uid));
+        if (lg.exists && lg.data().uid === uid) batch.delete(lg.ref);
+        await batch.commit();
+        showToast(t('stuDeleted'));
+      } catch (err) {
+        console.error(err);
+        showToast(authErrMsg(err));
+      }
+    }
+
+    async function adminDeleteProject(pid) {
+      const p = adminProjects.find(x => x.id === pid);
+      if (!p || !window.confirm(t('projDeleteConfirm', p.name))) return;
+      try { await db.collection('projects').doc(pid).delete(); }
+      catch (err) { showToast(authErrMsg(err)); }
     }
 
     function renderSettingsProfessors() {
