@@ -516,6 +516,7 @@
        5. UNIFIED SPREADSHEET TIMELINE & MERGED TASK BARS
        ========================================================================= */
     .sheet-scroll {
+      position: relative;
       overflow-x: auto;
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-md);
@@ -905,3 +906,38 @@
 .lb-ver { background: rgba(255,255,255,0.12); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; padding: 2px 9px; margin: 0 3px; font-size: 12px; font-family: var(--font-mono); cursor: pointer; }
 .lb-ver.active { background: #6366f1; border-color: #818cf8; color: #fff; }
 .lb-caption { pointer-events: auto; }
+
+
+/* ---- today line, file markers on weeks ---- */
+.today-line { position: absolute; width: 2px; background: var(--danger); box-shadow: 0 0 6px rgba(239,68,68,.6); z-index: 5; pointer-events: none; }
+th.day-th.today { background: var(--danger-soft); color: var(--text-primary); font-weight: 700; box-shadow: inset 0 -2px 0 var(--danger); }
+th.day-th.has-files { position: relative; }
+th.day-th.has-files::after { content: ''; position: absolute; left: 50%; bottom: 2px; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: #38bdf8; }
+.wk-files { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 600; background: rgba(56,189,248,.16); color: #7dd3fc; }
+
+/* ---- calendar to-do ---- */
+.todo-card { margin-bottom: 16px; padding: 12px 16px; }
+.todo-card > summary { cursor: pointer; list-style: none; font-weight: 600; font-size: 14px; }
+.todo-card > summary::-webkit-details-marker { display: none; }
+.todo-card > summary::before { content: '▸'; margin-right: 6px; color: var(--text-secondary); }
+.todo-card[open] > summary::before { content: '▾'; }
+.todo-body { margin-top: 10px; max-height: 280px; overflow: auto; display: grid; gap: 10px; }
+.todo-group-title { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 4px; }
+.todo-group.overdue .todo-group-title { color: #fca5a5; }
+.todo-group.today .todo-group-title { color: #86efac; }
+.todo-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-sm); cursor: pointer; font-size: 12px; }
+.todo-row:hover { background: var(--bg-elevated); }
+.todo-date { color: var(--text-secondary); min-width: 150px; flex-shrink: 0; }
+.todo-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---- professor: students as compact tiles ---- */
+.tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 200px)); gap: 10px; }
+.stu-tile { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 10px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.stu-tile.is-archived { opacity: .7; }
+.stu-tile-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.stu-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent-soft); color: #c7d2fe; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.stu-tile-id { min-width: 0; }
+.stu-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stu-proj { font-size: 12px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stu-tile-meta { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 11px; }
+.stu-tile-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }

@@ -179,6 +179,13 @@ service cloud.firestore {
         daysShort: ['Pon', 'Uto', 'Sre', 'Čet', 'Pet', 'Sub', 'Ned'],
         daysFull: ['Ponedeljak', 'Utorak', 'Sreda', 'Četvrtak', 'Petak', 'Subota', 'Nedelja'],
         scheduledDaysCount: (n) => `${n}d`,
+        todoTitle: 'Šta treba da se radi (po kalendaru)',
+        todoOverdue: 'Kasni', todoToday: 'Danas', todoSoon: 'Narednih 7 dana', todoLater: 'Kasnije',
+        todoEmpty: 'Nema zadataka koji čekaju rad.',
+        todoNoDates: 'Projekat nema datum početka, pa se zadaci ne mogu rasporediti po kalendaru.',
+        todayLbl: 'Danas',
+        weekFilesTip: (n) => `${n} fajl(ova) dodato ove nedelje`,
+        dayFilesTip: (n) => `${n} fajl(ova) dodato ovog dana`,
         profDashTitle: 'Pregled studenata po godini studija',
         profDashSub: 'Izaberite godinu studija (1–4. godina), pregledajte zadatke koji čekaju odobrenje i ocenite projekte.',
         queueTitle: 'Čeka se pregled — dodeljeni zadaci',
@@ -366,6 +373,13 @@ service cloud.firestore {
         daysShort: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
         daysFull: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
         scheduledDaysCount: (n) => `${n}d`,
+        todoTitle: 'To-do by calendar',
+        todoOverdue: 'Overdue', todoToday: 'Today', todoSoon: 'Next 7 days', todoLater: 'Later',
+        todoEmpty: 'Nothing waiting to be worked on.',
+        todoNoDates: 'The project has no start date, so tasks cannot be placed on the calendar.',
+        todayLbl: 'Today',
+        weekFilesTip: (n) => `${n} file(s) added this week`,
+        dayFilesTip: (n) => `${n} file(s) added this day`,
         profDashTitle: 'Students by Study Year',
         profDashSub: 'Select a study year (1–4), review tasks waiting for approval, and grade projects.',
         queueTitle: 'Waiting for Approval — Assigned Queue',
@@ -1804,6 +1818,134 @@ service cloud.firestore {
       return `${w}-${d}`;
     }
 
+
+    /* ---- calendar mapping: column 0 = Monday of the week that contains the project's start date ---- */
+    function projectAnchorDate(proj) {
+      const s0 = new Date(String(proj && proj.startDate || '') + 'T00:00:00');
+      if (isNaN(s0.getTime())) return null;
+      return new Date(s0.getFullYear(), s0.getMonth(), s0.getDate() - ((s0.getDay() + 6) % 7));
+    }
+
+    function colToDate(proj, col) {
+      const a = projectAnchorDate(proj);
+      return a ? new Date(a.getFullYear(), a.getMonth(), a.getDate() + col) : null;
+    }
+
+    function dateToColIndex(proj, date) {
+      const a = projectAnchorDate(proj);
+      if (!a) return null;
+      const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      return Math.round((d - a) / 86400000);
+    }
+
+    function fmtCol(proj, col) {
+      const dt = colToDate(proj, col);
+      return `${t('dayNames')[((col % 7) + 7) % 7]} ${dt.getDate()}.${dt.getMonth() + 1}.`;
+    }
+
+    // how many files (every version counts) were uploaded on each schedule column
+    function collectUploadCols(proj) {
+      const out = {};
+      const total = (proj.totalWeeks || 4) * 7;
+      (proj.categories || []).forEach(cat => (cat.tasks || []).forEach(tk => (tk.media || []).forEach(m => {
+        mediaVersions(m).forEach(v => {
+          const ts = v.uploadedAt || m.uploadedAt;
+          if (!ts) return;
+          const c = dateToColIndex(proj, new Date(ts));
+          if (c === null || c < 0 || c >= total) return;
+          out[c] = (out[c] || 0) + 1;
+        });
+      })));
+      return out;
+    }
+
+    function positionTodayLine() {
+      const line = document.getElementById('today-line');
+      const table = document.getElementById('timeline-table');
+      if (!line || !table) return;
+      const th = table.querySelector('th.day-th.today');
+      if (!th) { line.classList.add('hidden'); return; }
+      const wrap = table.parentElement;
+      const wr = wrap.getBoundingClientRect(), tr = th.getBoundingClientRect();
+      if (!tr.width) { line.classList.add('hidden'); return; }
+      line.style.left = (tr.left - wr.left + wrap.scrollLeft + tr.width / 2 - 1) + 'px';
+      line.style.top = (tr.top - wr.top + wrap.scrollTop) + 'px';
+      line.style.height = Math.max(0, table.offsetHeight - (tr.top - table.getBoundingClientRect().top)) + 'px';
+      line.title = t('todayLbl');
+      line.classList.remove('hidden');
+    }
+
+    function scrollTimelineToToday(proj) {
+      if (appState.todayScrolledFor === proj.id) return;
+      const table = document.getElementById('timeline-table');
+      const th = table && table.querySelector('th.day-th.today');
+      if (!th) return;
+      appState.todayScrolledFor = proj.id;
+      const wrap = table.parentElement;
+      wrap.scrollLeft = Math.max(0, th.offsetLeft - 290 - 120);
+      positionTodayLine();
+    }
+
+    function collectTodoRuns(proj) {
+      const runs = [];
+      (proj.categories || []).forEach(cat => (cat.tasks || []).forEach(task => {
+        const cols = (task.scheduledDays || []).map(dayKeyToColIndex).filter(c => c >= 0).sort((a, b) => a - b);
+        let i = 0;
+        while (i < cols.length) {
+          let j = i;
+          while (j + 1 < cols.length && cols[j + 1] === cols[j] + 1) j++;
+          runs.push({ cat, task, from: cols[i], to: cols[j] });
+          i = j + 1;
+        }
+      }));
+      return runs;
+    }
+
+    function renderTodo(proj) {
+      const body = document.getElementById('ws-todo-body');
+      const title = document.getElementById('ws-todo-title');
+      if (!body || !title) return;
+      title.textContent = t('todoTitle');
+      const tc = dateToColIndex(proj, new Date());
+      if (tc === null) { body.innerHTML = `<div class="brand-sub">${escapeHtml(t('todoNoDates'))}</div>`; return; }
+
+      const groups = [
+        { key: 'todoOverdue', cls: 'overdue', items: [] },
+        { key: 'todoToday', cls: 'today', items: [] },
+        { key: 'todoSoon', cls: 'soon', items: [] },
+        { key: 'todoLater', cls: 'later', items: [] }
+      ];
+      collectTodoRuns(proj).forEach(r => {
+        const st = r.task.status;
+        if (st === 'Approved') return;
+        if (r.to < tc) { if (st !== 'Ready for Review') groups[0].items.push(r); }
+        else if (r.from <= tc) groups[1].items.push(r);
+        else if (r.from <= tc + 7) groups[2].items.push(r);
+        else groups[3].items.push(r);
+      });
+      groups.forEach(g => g.items.sort((a, b) => a.from - b.from));
+
+      const open = groups.reduce((n, g) => n + g.items.length, 0);
+      title.textContent = `${t('todoTitle')} (${open})`;
+      if (!open) { body.innerHTML = `<div class="brand-sub">${escapeHtml(t('todoEmpty'))}</div>`; return; }
+
+      body.innerHTML = groups.filter(g => g.items.length).map(g => `
+        <div class="todo-group ${g.cls}">
+          <div class="todo-group-title">${escapeHtml(t(g.key))} <span class="mono">${g.items.length}</span></div>
+          ${g.items.map(r => {
+            const when = r.from === r.to ? fmtCol(proj, r.from) : `${fmtCol(proj, r.from)} – ${fmtCol(proj, r.to)}`;
+            const n = r.to - r.from + 1;
+            return `<div class="todo-row" onclick="openTaskModal('${r.cat.id}', '${r.task.id}')">
+              <span class="color-dot" style="background:${escapeHtml(r.cat.color || '#6366f1')}"></span>
+              <span class="todo-date mono">${escapeHtml(when)}</span>
+              <span class="todo-name">${escapeHtml(getCategoryDisplayName(r.cat))} / <strong>${escapeHtml(getTaskDisplayName(r.task))}</strong></span>
+              <span class="badge mono" style="font-size:10px;padding:1px 6px">${escapeHtml(t('scheduledDaysCount', n))}</span>
+              <span class="badge" style="font-size:10px;padding:1px 6px">${escapeHtml(getStatusLabel(r.task.status))}</span>
+            </div>`;
+          }).join('')}
+        </div>`).join('');
+    }
+
     function getCategoryDaySet(cat) {
       const set = new Set();
       (cat.tasks || []).forEach(tk => {
@@ -1881,7 +2023,9 @@ service cloud.firestore {
         noteBox.classList.add('hidden');
       }
 
+      renderTodo(proj);
       renderTimelineTable(proj, editable);
+      scrollTimelineToToday(proj);
     }
 
     function renderTimelineTable(proj, editable) {
@@ -1895,11 +2039,19 @@ service cloud.firestore {
       let weekThHtml = `<th class="sticky-col" rowspan="2">${escapeHtml(t('colPipeline'))}</th>`;
       let dayThHtml = '';
 
+      const todayCol = dateToColIndex(proj, new Date());
+      const fileCols = collectUploadCols(proj);
       for (let w = 1; w <= totalWeeks; w++) {
-        weekThHtml += `<th class="week-th" colspan="7">${escapeHtml(t('weekLbl'))} ${w}</th>`;
+        let wkFiles = 0;
+        for (let d = 0; d < 7; d++) wkFiles += fileCols[(w - 1) * 7 + d] || 0;
+        const wkTag = wkFiles ? ` <span class="wk-files" title="${escapeHtml(t('weekFilesTip', wkFiles))}">${ic('clip')} ${wkFiles}</span>` : '';
+        weekThHtml += `<th class="week-th" colspan="7">${escapeHtml(t('weekLbl'))} ${w}${wkTag}</th>`;
         for (let d = 0; d < 7; d++) {
+          const col = (w - 1) * 7 + d;
           const isWeekend = d >= 5;
-          dayThHtml += `<th class="day-th ${isWeekend ? 'weekend' : ''}">${escapeHtml(shortDays[d])}</th>`;
+          const dt = colToDate(proj, col);
+          const tip = [dt ? `${dt.getDate()}.${dt.getMonth() + 1}.${dt.getFullYear()}` : '', fileCols[col] ? t('dayFilesTip', fileCols[col]) : '', col === todayCol ? t('todayLbl') : ''].filter(Boolean).join(' · ');
+          dayThHtml += `<th class="day-th ${isWeekend ? 'weekend' : ''} ${col === todayCol ? 'today' : ''} ${fileCols[col] ? 'has-files' : ''}" title="${escapeHtml(tip)}">${escapeHtml(shortDays[d])}</th>`;
         }
       }
 
@@ -2007,7 +2159,6 @@ service cloud.firestore {
                       ${mediaCount > 0 ? `<span class="badge mono" style="font-size:10px;padding:1px 5px">${ic('clip')} ${mediaCount}</span>` : ''}
                       ${openQCount > 0 ? `<span class="badge mono" style="font-size:10px;padding:1px 5px;color:#fcd34d">${ic('question')} ${openQCount}</span>` : ''}
                       ${commentCount > 0 ? `<span class="badge mono" style="font-size:10px;padding:1px 5px">${ic('chat')} ${commentCount}</span>` : ''}
-                      <span class="badge mono" style="font-size:10px;padding:1px 5px">${t('scheduledDaysCount', tDaySet.size)}</span>
                     </div>
                   </div>
                 </td>
@@ -2047,6 +2198,7 @@ service cloud.firestore {
       });
 
       table.innerHTML = `${theadHtml}<tbody>${tbodyHtml}</tbody>`;
+      positionTodayLine();
     }
 
     function toggleTaskDay(catId, taskId, dayKey) {
@@ -2443,7 +2595,10 @@ service cloud.firestore {
 
         <div class="panel" style="margin-bottom:14px">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-            <div class="field-label" style="margin:0">${escapeHtml(t('daysSectionLbl'))}</div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <div class="field-label" style="margin:0">${escapeHtml(t('daysSectionLbl'))}</div>
+              <span class="badge mono" style="font-size:10px;padding:1px 6px">${escapeHtml(t('scheduledDaysCount', (task.scheduledDays || []).filter(dk => dayKeyToColIndex(dk) >= 0).length))}</span>
+            </div>
             ${(editable && (task.scheduledDays || []).length) ? `<button type="button" class="btn btn-sm btn-danger" onclick="clearTaskDays('${cat.id}', '${task.id}')">${escapeHtml(t('daysClearAll'))}</button>` : ''}
           </div>
           ${(() => {
@@ -3062,10 +3217,15 @@ service cloud.firestore {
       renderProfessorDashboard();
     }
 
+    function stuInitials(stu) {
+      const parts = String(stu.name || '?').trim().split(/\s+/);
+      return ((parts[0] || '?')[0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+    }
+
     function profProjectCardHtml(stu, rawProj) {
       const proj = normalizeProject(rawProj);
       const stats = computeProgressStats(proj);
-      const finalGrade = (proj.grades && proj.grades.final) ? proj.grades.final : t('ungraded');
+      const finalGrade = (proj.grades && proj.grades.final) ? proj.grades.final : '—';
       const archived = isArchivedFor(proj, 'professor');
       let archiveCtl;
       if (proj.archivedByProf) archiveCtl = `<button type="button" class="btn btn-sm" onclick="profToggleArchive('${stu.id}', '${proj.id}')">${escapeHtml(t('unarchiveBtn'))}</button>`;
@@ -3073,48 +3233,44 @@ service cloud.firestore {
       else archiveCtl = `<button type="button" class="btn btn-sm" onclick="profToggleArchive('${stu.id}', '${proj.id}')">${escapeHtml(t('archiveBtn'))}</button>`;
 
       return `
-        <div class="card" style="display:flex;flex-direction:column;justify-content:space-between;gap:14px;${archived ? 'opacity:.75' : ''}">
-          <div>
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
-              <div>
-                <h3 style="margin:0;font-size:15px;font-weight:600">${escapeHtml(stu.name)}</h3>
-                <div class="brand-sub mono">${escapeHtml(stu.indexId)} · ${escapeHtml(t('yearShort', yearOfStudent(stu)))}</div>
-              </div>
-              <span class="badge badge-public">${escapeHtml(t('publicLbl'))}</span>
-            </div>
-
-            <div class="brand-sub" style="margin-top:10px">${escapeHtml(proj.name)}</div>
-            <div class="brand-sub mono" style="margin-top:2px;color:#93c5fd">${escapeHtml(proj.driveFolderPath)}</div>
-
-            <div style="margin-top:10px">
-              <div style="display:flex;justify-content:space-between;font-size:11px">
-                <span style="color:var(--text-secondary)">${escapeHtml(t('approvedProgressLbl'))} (${stats.approved}/${stats.total})</span>
-                <span class="mono" style="color:#86efac">${stats.approvedPct}%</span>
-              </div>
-              <div class="progress-track">
-                <div class="progress-fill-approved" style="width:${stats.approvedPct}%"></div>
-                <div class="progress-fill-review" style="width:${stats.reviewPct}%"></div>
-              </div>
-              ${stats.review > 0 ? `<div style="margin-top:6px"><span class="badge badge-review">${escapeHtml(t('waitingBadge', stats.review))}</span></div>` : ''}
+        <div class="stu-tile ${archived ? 'is-archived' : ''}">
+          <div class="stu-tile-head">
+            <div class="stu-avatar">${escapeHtml(stuInitials(stu))}</div>
+            <div class="stu-tile-id">
+              <div class="stu-name" title="${escapeHtml(stu.name)}">${escapeHtml(stu.name)}</div>
+              <div class="brand-sub mono">${escapeHtml(stu.indexId)}</div>
             </div>
           </div>
-
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--border-subtle)">
-            <span class="brand-sub mono">${escapeHtml(t('gradeLbl'))}: <strong style="color:var(--text-primary)">${escapeHtml(finalGrade)}</strong></span>
-            <span style="display:flex;gap:6px;align-items:center">
-              ${archiveCtl}
-              <button type="button" class="btn btn-primary btn-sm" onclick="inspectStudentProject('${stu.id}', '${proj.id}')">${escapeHtml(t('inspectStudentBtn'))}</button>
-            </span>
+          <div class="stu-proj" title="${escapeHtml(proj.name)}">${escapeHtml(proj.name)}</div>
+          <div>
+            <div class="progress-track" style="margin-top:0">
+              <div class="progress-fill-approved" style="width:${stats.approvedPct}%"></div>
+              <div class="progress-fill-review" style="width:${stats.reviewPct}%"></div>
+            </div>
+            <div class="stu-tile-meta">
+              <span class="mono" style="color:#86efac">${stats.approvedPct}%</span>
+              ${stats.review > 0 ? `<span class="badge badge-review" title="${escapeHtml(t('waitingBadge', stats.review))}">${ic('hourglass')} ${stats.review}</span>` : ''}
+              <span class="mono" style="margin-left:auto" title="${escapeHtml(t('gradeLbl'))}">${escapeHtml(finalGrade)}</span>
+            </div>
+          </div>
+          <div class="stu-tile-actions">
+            ${archiveCtl}
+            <button type="button" class="btn btn-primary btn-sm" onclick="inspectStudentProject('${stu.id}', '${proj.id}')">${escapeHtml(t('inspectStudentBtn'))}</button>
           </div>
         </div>`;
     }
 
     function profEmptyStudentCardHtml(stu) {
       return `
-        <div class="card" style="display:flex;flex-direction:column;gap:6px">
-          <h3 style="margin:0;font-size:15px;font-weight:600">${escapeHtml(stu.name)}</h3>
-          <div class="brand-sub mono">${escapeHtml(stu.indexId)} · ${escapeHtml(t('yearShort', yearOfStudent(stu)))}</div>
-          <div class="brand-sub" style="margin-top:6px">${escapeHtml(t('noPublicProjects'))}</div>
+        <div class="stu-tile">
+          <div class="stu-tile-head">
+            <div class="stu-avatar">${escapeHtml(stuInitials(stu))}</div>
+            <div class="stu-tile-id">
+              <div class="stu-name" title="${escapeHtml(stu.name)}">${escapeHtml(stu.name)}</div>
+              <div class="brand-sub mono">${escapeHtml(stu.indexId)}</div>
+            </div>
+          </div>
+          <div class="brand-sub">${escapeHtml(t('noPublicProjects'))}</div>
         </div>`;
     }
 
@@ -3193,11 +3349,11 @@ service cloud.firestore {
               <span>${pend ? `<span class="badge badge-review">${pend}</span>` : ''}</span>
             </summary>
             <div class="year-body">
-              ${cards.length ? `<div class="grid-3">${cards.join('')}</div>` : ''}
+              ${cards.length ? `<div class="tile-grid">${cards.join('')}</div>` : ''}
               ${archived.length ? `
                 <details class="inbox-group" style="margin-top:12px" ${openInbox.has(archKey) ? 'open' : ''} ontoggle="toggleInboxGroup('${archKey}', this.open)">
                   <summary><span>${escapeHtml(t('archivedSection', archived.length))}</span></summary>
-                  <div class="inbox-items"><div class="grid-3">${archived.join('')}</div></div>
+                  <div class="inbox-items"><div class="tile-grid">${archived.join('')}</div></div>
                 </details>` : ''}
             </div>
           </details>`;
@@ -3722,6 +3878,8 @@ service cloud.firestore {
         }
       }
     }
+
+    window.addEventListener('resize', () => positionTodayLine());
 
     (function initPortal() {
       injectStaticIcons();
