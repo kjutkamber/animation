@@ -303,6 +303,7 @@
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <button type="button" id="ws-back-prof-btn" class="btn btn-sm hidden" onclick="switchMainTab('projects')">← Nazad na godinu</button>
             <button type="button" id="ws-back-projects-btn" class="btn btn-sm" onclick="switchMainTab('projects')">Moji projekti</button>
+            <button type="button" id="ws-edit-project-btn" class="btn btn-sm hidden" onclick="openEditProjectModal()">Izmeni projekat</button>
             <button type="button" id="ws-archive-btn" class="btn btn-sm" onclick="toggleArchiveProject()"></button>
             <button type="button" id="ws-visibility-toggle" class="btn btn-sm" onclick="toggleProjectVisibility()"></button>
             <button type="button" id="ws-grade-btn" class="btn btn-sm btn-primary hidden" onclick="openGradingModal()">Ocena i komentar</button>
@@ -325,9 +326,6 @@
             <div class="progress-track">
               <div id="ws-progress-approved-bar" class="progress-fill-approved" style="width:0%"></div>
               <div id="ws-progress-review-bar" class="progress-fill-review" style="width:0%"></div>
-            </div>
-            <div id="ws-progress-hint" class="brand-sub" style="margin-top:4px">
-              U završen napredak ulaze samo zadaci sa statusom „Odobreno / Gotovo”.
             </div>
           </div>
 
@@ -380,7 +378,7 @@
       <div class="modal-header">
         <div>
           <h3 id="np-modal-title" style="margin:0;font-size:16px;font-weight:600">Napravi projekat</h3>
-          <div id="np-modal-sub" class="brand-sub mono" style="margin-top:2px">Drive / Animation Pipeline / [Naziv]</div>
+          <div id="np-modal-sub" class="brand-sub mono" style="margin-top:2px"></div>
         </div>
         <button type="button" class="btn btn-sm" onclick="closeModal('new-project-modal')">✕</button>
       </div>
@@ -431,6 +429,80 @@
         <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
           <button type="button" id="btn-np-cancel" class="btn" onclick="closeModal('new-project-modal')">Otkaži</button>
           <button type="submit" id="btn-np-submit" class="btn btn-primary">Napravi projekat</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- =======================================================================
+       MODAL: ADD GOOGLE DOC TO A TASK (#add-doc-modal)
+       ======================================================================= -->
+  <div id="add-doc-modal" class="modal-backdrop hidden">
+    <div class="modal-box" style="max-width:460px">
+      <div class="modal-header">
+        <h3 id="doc-modal-title" style="margin:0;font-size:16px;font-weight:600">Dodaj Google Doc</h3>
+        <button type="button" class="btn btn-sm" onclick="closeModal('add-doc-modal')">✕</button>
+      </div>
+      <form onsubmit="handleAddDoc(event)">
+        <div class="field-group">
+          <label id="lbl-doc-link" class="field-label" for="doc-link">Link</label>
+          <input id="doc-link" type="url" class="input" required autocomplete="off" />
+        </div>
+        <div class="field-group">
+          <label id="lbl-doc-name" class="field-label" for="doc-name">Naziv (opciono)</label>
+          <input id="doc-name" type="text" class="input" autocomplete="off" />
+        </div>
+        <div id="doc-share-hint" class="brand-sub" style="margin-bottom:12px"></div>
+        <div style="display:flex;justify-content:flex-end;gap:8px">
+          <button type="button" id="btn-doc-cancel" class="btn" onclick="closeModal('add-doc-modal')">Otkaži</button>
+          <button type="submit" id="btn-doc-submit" class="btn btn-primary">Dodaj</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- =======================================================================
+       MODAL: EDIT PROJECT (#edit-project-modal)
+       ======================================================================= -->
+  <div id="edit-project-modal" class="modal-backdrop hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="ep-title" style="margin:0;font-size:16px;font-weight:600">Izmeni projekat</h3>
+        <button type="button" class="btn btn-sm" onclick="closeModal('edit-project-modal')">✕</button>
+      </div>
+      <form onsubmit="handleEditProject(event)">
+        <div class="field-group">
+          <label id="lbl-ep-name" class="field-label" for="ep-name"></label>
+          <input id="ep-name" type="text" class="input" required autocomplete="off" />
+        </div>
+        <div class="grid-2">
+          <div class="field-group">
+            <label id="lbl-ep-type" class="field-label" for="ep-type"></label>
+            <select id="ep-type" class="select">
+              <option value="2D">2D</option>
+              <option value="3D CGI">3D CGI</option>
+              <option value="Stop Motion">Stop Motion</option>
+              <option value="Hybrid">Hybrid</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label id="lbl-ep-length" class="field-label" for="ep-length"></label>
+            <input id="ep-length" type="text" class="input" required autocomplete="off" />
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="field-group">
+            <label id="lbl-ep-start" class="field-label" for="ep-start"></label>
+            <input id="ep-start" type="date" class="input" required />
+          </div>
+          <div class="field-group">
+            <label id="lbl-ep-end" class="field-label" for="ep-end"></label>
+            <input id="ep-end" type="date" class="input" required />
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px">
+          <button type="button" id="btn-ep-cancel" class="btn" onclick="closeModal('edit-project-modal')">Otkaži</button>
+          <button type="submit" id="btn-ep-submit" class="btn btn-primary">Sačuvaj</button>
         </div>
       </form>
     </div>

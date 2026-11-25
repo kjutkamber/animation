@@ -150,7 +150,7 @@ service cloud.firestore {
         createBtn: 'Napravi projekat',
         projectCreated: (path) => `Napravljen projekat i folder: ${path}`,
         openPipelineBtn: 'Otvori raspored',
-        approvedProgressLbl: 'Napredak (samo odobreno / gotovo)',
+        approvedProgressLbl: 'Napredak',
         progressRule: 'U završen napredak ulaze samo zadaci sa statusom „Odobreno / Gotovo”.',
         waitingBadge: (n) => `${n} čeka pregled`,
         gradeLbl: 'Ocena',
@@ -181,6 +181,12 @@ service cloud.firestore {
         scheduledDaysCount: (n) => `${n}d`,
         todoTitle: 'To do list',
         todoShowMore: (n) => `Prikaži dalje (${n})`, todoShowLess: 'Sakrij', todoNothingToday: 'Danas nema zakazanih zadataka.',
+        addDocBtn: '+ Google Doc', docModalTitle: 'Dodaj Google Doc', docLinkLbl: 'Link', docNameLbl: 'Naziv (opciono)',
+        docBadLink: 'Nalepi link ka Google Docs / Sheets / Slides dokumentu ili Drive fajlu.', docShareHint: 'Podeli dokument kao „Svako ko ima link”, da ga profesor može otvoriti.',
+        docAddSubmit: 'Dodaj', docAdded: 'Dokument dodat.', docDelConfirm: 'Ukloniti ovaj dokument sa zadatka?',
+        delComment: 'Obriši komentar', delCommentConfirm: 'Obrisati ovaj komentar?', delCommentRepliesConfirm: 'Obrisati komentar i odgovore na njega?',
+        editProjectBtn: 'Izmeni projekat', saveProjBtn: 'Sačuvaj', projectUpdated: 'Projekat izmenjen.', badDates: 'Datum završetka mora biti posle datuma početka.',
+        stNotifComment: 'Komentar profesora', stNotifApproved: 'Zadatak odobren', stNotifGrade: 'Nova ocena / komentar na projekat', stNotifOpen: 'Otvori', stNoNotifs: 'Nema novih obaveštenja.',
         delCatTitle: 'Obriši kategoriju', delTaskTitle: 'Obriši zadatak',
         delCatConfirm: (name, n) => `Obrisati kategoriju „${name}” i svih ${n} zadataka u njoj (sa komentarima i vezama ka fajlovima)? Fajlovi na Drive-u ostaju.`,
         delTaskConfirm: (name) => `Obrisati zadatak „${name}” (sa komentarima i vezama ka fajlovima)? Fajlovi na Drive-u ostaju.`,
@@ -228,10 +234,10 @@ service cloud.firestore {
         daysSectionLbl: 'Zakazani dani (kliknite na dan za uključenje/isključenje)',
         addDayBtn: '+1 dan',
         removeDayBtn: '-1 dan',
-        mediaSectionLbl: 'Slike i video na Drive-u',
-        uploadMediaBtn: '+ Otpremi sliku / video',
+        mediaSectionLbl: 'Fajlovi',
+        uploadMediaBtn: '+ Dodaj fajl',
         mediaUploaded: 'Fajl je dodat u folder na Drive-u.',
-        noMedia: 'Još nema otpremljenih slika ili videa.',
+        noMedia: 'Nema.',
         commentsLbl: 'Komentari',
         noComments: 'Još nema komentara.',
         commentPlaceholder: 'Napišite komentar...',
@@ -349,7 +355,7 @@ service cloud.firestore {
         createBtn: 'Create Project',
         projectCreated: (path) => `Created project & folder: ${path}`,
         openPipelineBtn: 'Open Pipeline',
-        approvedProgressLbl: 'Progress (Approved / Done only)',
+        approvedProgressLbl: 'Progress',
         progressRule: 'Only tasks marked "Approved / Done" count toward completed progress.',
         waitingBadge: (n) => `${n} waiting for approval`,
         gradeLbl: 'Grade',
@@ -380,6 +386,12 @@ service cloud.firestore {
         scheduledDaysCount: (n) => `${n}d`,
         todoTitle: 'To do list',
         todoShowMore: (n) => `Show more (${n})`, todoShowLess: 'Hide', todoNothingToday: 'Nothing scheduled for today.',
+        addDocBtn: '+ Google Doc', docModalTitle: 'Add Google Doc', docLinkLbl: 'Link', docNameLbl: 'Name (optional)',
+        docBadLink: 'Paste a link to a Google Docs / Sheets / Slides document or a Drive file.', docShareHint: 'Share the document as “Anyone with the link” so the professor can open it.',
+        docAddSubmit: 'Add', docAdded: 'Document added.', docDelConfirm: 'Remove this document from the task?',
+        delComment: 'Delete comment', delCommentConfirm: 'Delete this comment?', delCommentRepliesConfirm: 'Delete this comment and the replies to it?',
+        editProjectBtn: 'Edit project', saveProjBtn: 'Save', projectUpdated: 'Project updated.', badDates: 'The end date must be after the start date.',
+        stNotifComment: 'Professor comment', stNotifApproved: 'Task approved', stNotifGrade: 'New grade / project note', stNotifOpen: 'Open', stNoNotifs: 'No new notifications.',
         delCatTitle: 'Delete category', delTaskTitle: 'Delete task',
         delCatConfirm: (name, n) => `Delete category “${name}” and all ${n} tasks in it (with comments and file links)? Files on Drive stay.`,
         delTaskConfirm: (name) => `Delete task “${name}” (with comments and file links)? Files on Drive stay.`,
@@ -427,10 +439,10 @@ service cloud.firestore {
         daysSectionLbl: 'Scheduled Days (click a day to toggle)',
         addDayBtn: '+1 Day',
         removeDayBtn: '-1 Day',
-        mediaSectionLbl: 'Images & Videos on Drive',
-        uploadMediaBtn: '+ Upload Image / Video',
+        mediaSectionLbl: 'Files',
+        uploadMediaBtn: '+ Add file',
         mediaUploaded: 'File added to project folder on Drive.',
-        noMedia: 'No images or videos uploaded yet.',
+        noMedia: 'None.',
         commentsLbl: 'Comments',
         noComments: 'No comments yet.',
         commentPlaceholder: 'Write a comment...',
@@ -901,10 +913,12 @@ service cloud.firestore {
         const r = rt[c.id + '/' + tk.id];
         if (!r) return;
         if (!Array.isArray(tk.comments)) tk.comments = [];
+        const dead = new Set([...(tk.deletedCommentIds || []), ...(r.deletedCommentIds || [])]);
+        if (dead.size) { tk.deletedCommentIds = Array.from(dead).slice(-300); tk.comments = tk.comments.filter(cm => !dead.has(cm.id)); }
         const have = {};
         tk.comments.forEach(cm => { if (cm.id) have[cm.id] = cm; });
         (r.comments || []).forEach(rc => {
-          if (!rc.id) return;
+          if (!rc.id || dead.has(rc.id)) return;
           const l = have[rc.id];
           if (!l) tk.comments.push(rc);
           else { l.read = Boolean(l.read || rc.read); l.answered = Boolean(l.answered || rc.answered); }
@@ -1371,7 +1385,6 @@ service cloud.firestore {
       document.getElementById('ws-add-week-btn').textContent = t('addWeekBtn');
       document.getElementById('ws-grade-btn').textContent = t('gradeActionBtn');
       document.getElementById('ws-progress-label').textContent = t('approvedProgressLbl');
-      document.getElementById('ws-progress-hint').textContent = t('progressRule');
       document.getElementById('ws-prof-note-title').textContent = t('profNoteTitle');
 
       // Professor dashboard labels
@@ -1591,7 +1604,7 @@ service cloud.firestore {
       document.getElementById('np-start').value = '2026-11-23';
       document.getElementById('np-end').value = '2026-12-20';
       document.getElementById('np-visibility').value = 'public';
-      document.getElementById('np-modal-sub').textContent = 'Animation Pipeline / [Naziv projekta]';
+      document.getElementById('np-modal-sub').textContent = '';
       document.getElementById('new-project-modal').classList.remove('hidden');
     }
 
@@ -1620,7 +1633,7 @@ service cloud.firestore {
         try {
           await tokenP;
           const proj = createNewProjectObj({ name, animationType, length, startDate, endDate, isPublic });
-          step('Drive: Animation Pipeline…');
+          step('Drive…');
           const rootId = await ensureRootFolder(stu);
           step(`Drive: ${name}…`);
           const folder = await driveCreateFolder(name, rootId);
@@ -1649,7 +1662,7 @@ service cloud.firestore {
           showToast(t('projectCreated', proj.driveFolderPath));
         } catch (err) {
           console.error(err);
-          sub.textContent = 'Animation Pipeline / [Naziv projekta]';
+          sub.textContent = '';
           showToast(t('driveErr') + ' ' + err.message);
         } finally {
           btn.disabled = false;
@@ -1753,9 +1766,6 @@ service cloud.firestore {
                 </span>
               </div>
 
-              <div class="brand-sub mono" style="margin-top:8px;color:#93c5fd">
-                ${escapeHtml(proj.driveFolderPath)}
-              </div>
               <div class="brand-sub mono" style="margin-top:4px">
                 ${escapeHtml(proj.startDate)} → ${escapeHtml(proj.endDate)} (${proj.totalWeeks} ${t('weekLbl')})
               </div>
@@ -1981,7 +1991,7 @@ service cloud.firestore {
 
       document.getElementById('ws-project-title').textContent = proj.name;
       document.getElementById('ws-project-meta').textContent =
-        `${stu.name} (${stu.indexId}) · ${t('yearShort', stu.studyYear || 1)} · ${proj.animationType} · ${proj.length} · ${proj.driveFolderPath}`;
+        `${stu.name} (${stu.indexId}) · ${t('yearShort', stu.studyYear || 1)} · ${proj.animationType} · ${proj.length}`;
 
       const visBadge = document.getElementById('ws-visibility-badge');
       visBadge.className = `badge ${proj.isPublic ? 'badge-public' : 'badge-private'}`;
@@ -2001,6 +2011,9 @@ service cloud.firestore {
       if (lockedByProf) archBtn.textContent = t('archivedByProfLbl');
 
       document.getElementById('ws-add-week-btn').classList.toggle('hidden', !editable);
+      const editBtn = document.getElementById('ws-edit-project-btn');
+      editBtn.classList.toggle('hidden', !editable);
+      editBtn.textContent = t('editProjectBtn');
       document.getElementById('ws-back-projects-btn').classList.toggle('hidden', !editable);
       document.getElementById('ws-back-prof-btn').classList.toggle('hidden', !isProf);
       document.getElementById('ws-grade-btn').classList.toggle('hidden', !isProf);
@@ -2018,7 +2031,8 @@ service cloud.firestore {
       document.getElementById('ws-sync-sheet-btn').classList.toggle('hidden', !editable || !proj.driveSheetId);
 
       const stats = computeProgressStats(proj);
-      document.getElementById('ws-progress-pct').textContent = `${stats.approvedPct}% (${stats.approved}/${stats.total})`;
+      document.getElementById('ws-progress-pct').textContent = `${stats.approvedPct}%`;
+      document.getElementById('ws-progress-pct').title = `${stats.approved}/${stats.total}`;
       document.getElementById('ws-progress-approved-bar').style.width = `${stats.approvedPct}%`;
       document.getElementById('ws-progress-review-bar').style.width = `${stats.reviewPct}%`;
 
@@ -2155,7 +2169,7 @@ service cloud.firestore {
           (collapsedKeys.has('cat:' + cat.id) ? [] : (cat.tasks || [])).forEach(task => {
             const tDaySet = new Set((task.scheduledDays || []).filter(dk => dayKeyToColIndex(dk) >= 0));
             const taskName = getTaskDisplayName(task);
-            const mediaCount = (task.media || []).length;
+            const mediaCount = (task.media || []).length + (task.docs || []).length;
             const commentCount = (task.comments || []).length;
             const openQCount = (task.comments || []).filter(c => c.question && !c.answered).length;
 
@@ -2191,9 +2205,12 @@ service cloud.firestore {
                 const pillText = getStatusShortPill(task.status, span);
                 tbodyHtml += `
                   <td colspan="${span}" class="merged-cell">
-                    <div class="merged-bar" style="background:${escapeHtml(cat.color || '#6366f1')}" title="${escapeHtml(taskName)} — ${escapeHtml(getStatusLabel(task.status))}" onclick="openTaskModal('${cat.id}', '${task.id}')">
-                      <span class="merged-bar-title">${escapeHtml(taskName)}</span>
-                      <span class="merged-bar-tag">${escapeHtml(pillText)}</span>
+                    <div class="bar-wrap">
+                      <div class="merged-bar" style="background:${escapeHtml(cat.color || '#6366f1')}" title="${escapeHtml(taskName)} — ${escapeHtml(getStatusLabel(task.status))}" onclick="openTaskModal('${cat.id}', '${task.id}')">
+                        <span class="merged-bar-title">${escapeHtml(taskName)}</span>
+                        <span class="merged-bar-tag">${escapeHtml(pillText)}</span>
+                      </div>
+                      ${(mediaCount || commentCount) ? `<span class="bar-marks">${mediaCount ? `<span class="bar-mark file" title="${escapeHtml(String(mediaCount))}">${ic('clip')}</span>` : ''}${openQCount ? `<span class="bar-mark ask" title="${escapeHtml(String(openQCount))}">${ic('question')}</span>` : (commentCount ? `<span class="bar-mark chat" title="${escapeHtml(String(commentCount))}">${ic('chat')}</span>` : '')}</span>` : ''}
                     </div>
                   </td>
                 `;
@@ -2374,6 +2391,62 @@ service cloud.firestore {
     /* =========================================================================
        11. ADD CATEGORY & ADD TASK MODALS
        ========================================================================= */
+    function openEditProjectModal() {
+      if (!canEditActiveProject()) return;
+      const proj = getActiveProject(getActiveStudent());
+      if (!proj) return;
+      document.getElementById('ep-title').textContent = t('editProjectBtn');
+      document.getElementById('lbl-ep-name').textContent = t('npName');
+      document.getElementById('lbl-ep-type').textContent = t('npType');
+      document.getElementById('lbl-ep-length').textContent = t('npLength');
+      document.getElementById('lbl-ep-start').textContent = t('npStart');
+      document.getElementById('lbl-ep-end').textContent = t('npEnd');
+      document.getElementById('btn-ep-cancel').textContent = t('cancel');
+      document.getElementById('btn-ep-submit').textContent = t('saveProjBtn');
+      document.getElementById('ep-name').value = proj.name || '';
+      document.getElementById('ep-type').value = proj.animationType || '3D CGI';
+      document.getElementById('ep-length').value = proj.length || '';
+      document.getElementById('ep-start').value = proj.startDate || '';
+      document.getElementById('ep-end').value = proj.endDate || '';
+      document.getElementById('edit-project-modal').classList.remove('hidden');
+    }
+
+    function handleEditProject(e) {
+      e.preventDefault();
+      if (!canEditActiveProject()) return;
+      const proj = getActiveProject(getActiveStudent());
+      if (!proj) return;
+      const name = document.getElementById('ep-name').value.trim();
+      const length = document.getElementById('ep-length').value.trim();
+      const startDate = document.getElementById('ep-start').value;
+      const endDate = document.getElementById('ep-end').value;
+      if (!name || !length || !startDate || !endDate) return;
+      if (new Date(endDate) <= new Date(startDate)) { showToast(t('badDates')); return; }
+
+      const oldName = proj.name;
+      proj.name = name;
+      proj.animationType = document.getElementById('ep-type').value;
+      proj.length = length;
+      proj.startDate = startDate;
+      proj.endDate = endDate;
+      proj.driveFolderPath = `Animation Pipeline / ${name}`;
+      let used = 0;   // never cut off a week that already has scheduled tasks
+      (proj.categories || []).forEach(c => (c.tasks || []).forEach(tk => (tk.scheduledDays || []).forEach(dk => {
+        const w = Number(String(dk).split('-')[0]); if (w > used) used = w;
+      })));
+      proj.totalWeeks = Math.max(calcWeeksFromDates(startDate, endDate), used);
+
+      saveStudentsToStorage();
+      closeModal('edit-project-modal');
+      renderAll();
+      showToast(t('projectUpdated'));
+
+      if (name !== oldName && driveTokenValid()) {   // keep Drive names in step (only when a Drive session is already live)
+        if (proj.driveFolderId) driveFetch(`${DRIVE_FILES}/${proj.driveFolderId}`, { method: 'PATCH', headers: JSON_HDR, body: JSON.stringify({ name }) }).catch(err => console.warn('drive rename', err));
+        if (proj.driveSheetId) driveFetch(`${DRIVE_FILES}/${proj.driveSheetId}`, { method: 'PATCH', headers: JSON_HDR, body: JSON.stringify({ name: `${name}_Schedule` }) }).catch(err => console.warn('sheet rename', err));
+      }
+    }
+
     function deleteCategory(catId) {
       if (!canEditActiveProject()) return;
       const stu = getActiveStudent();
@@ -2531,6 +2604,106 @@ service cloud.firestore {
       return p ? p.name : '—';
     }
 
+    /* ---------- Google Docs / Sheets / Slides links on a task ---------- */
+    const GOOGLE_DOC_RE = /^https:\/\/(docs|drive)\.google\.com\/(document|spreadsheets|presentation|forms|file)\/(?:u\/\d+\/)?d\/([\w-]+)/i;
+
+    function parseGoogleDocLink(raw) {
+      const u = String(raw || '').trim();
+      const m = u.match(GOOGLE_DOC_RE);
+      if (!m) return null;
+      const kind = { document: 'Doc', spreadsheets: 'Sheet', presentation: 'Slides', forms: 'Form', file: 'Drive' }[m[2].toLowerCase()];
+      return { url: u, kind };
+    }
+
+    function taskDocsHtml(cat, task, editable) {
+      const docs = (task.docs || []).filter(d => d && GOOGLE_DOC_RE.test(String(d.url || '')));
+      if (!docs.length) return '';
+      return `<div class="doc-list">${docs.map(d => {
+        const i = task.docs.indexOf(d);
+        return `<div class="doc-row">
+          <a class="doc-link" href="${escapeHtml(d.url)}" target="_blank" rel="noopener"><span class="badge mono">${escapeHtml(d.kind || 'Doc')}</span><span class="doc-name">${escapeHtml(d.name || 'Google Doc')}</span> ↗</a>
+          ${editable ? `<button type="button" class="btn btn-sm btn-danger" style="padding:2px 6px" onclick="deleteTaskDoc('${cat.id}', '${task.id}', ${i})">✕</button>` : ''}
+        </div>`;
+      }).join('')}</div>`;
+    }
+
+    let activeDocCtx = null;
+    function openAddDocModal(catId, taskId) {
+      if (!canEditActiveProject()) return;
+      activeDocCtx = { catId, taskId };
+      document.getElementById('doc-modal-title').textContent = t('docModalTitle');
+      document.getElementById('lbl-doc-link').textContent = t('docLinkLbl');
+      document.getElementById('lbl-doc-name').textContent = t('docNameLbl');
+      document.getElementById('doc-share-hint').textContent = t('docShareHint');
+      document.getElementById('btn-doc-cancel').textContent = t('cancel');
+      document.getElementById('btn-doc-submit').textContent = t('docAddSubmit');
+      document.getElementById('doc-link').value = '';
+      document.getElementById('doc-name').value = '';
+      document.getElementById('add-doc-modal').classList.remove('hidden');
+      document.getElementById('doc-link').focus();
+    }
+
+    function handleAddDoc(e) {
+      e.preventDefault();
+      if (!activeDocCtx || !canEditActiveProject()) return;
+      const parsed = parseGoogleDocLink(document.getElementById('doc-link').value);
+      if (!parsed) { showToast(t('docBadLink')); return; }
+      const { task } = findTaskCtx(activeDocCtx.catId, activeDocCtx.taskId);
+      if (!task) return;
+      if (!Array.isArray(task.docs)) task.docs = [];
+      task.docs.push({
+        id: 'doc-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
+        name: document.getElementById('doc-name').value.trim() || ('Google ' + parsed.kind),
+        url: parsed.url, kind: parsed.kind, addedAt: Date.now(),
+        authorId: appState.currentUser ? appState.currentUser.id : ''
+      });
+      const { catId, taskId } = activeDocCtx;
+      saveStudentsToStorage();
+      closeModal('add-doc-modal');
+      renderWorkspace();
+      openTaskModal(catId, taskId);
+      showToast(t('docAdded'));
+    }
+
+    function deleteTaskDoc(catId, taskId, idx) {
+      if (!canEditActiveProject()) return;
+      const { task } = findTaskCtx(catId, taskId);
+      if (!task || !Array.isArray(task.docs) || !task.docs[idx]) return;
+      if (!window.confirm(t('docDelConfirm'))) return;
+      task.docs.splice(idx, 1);
+      saveStudentsToStorage();
+      renderWorkspace();
+      openTaskModal(catId, taskId);
+    }
+
+    /* ---------- comments: "unsend" ---------- */
+    function isMyComment(c) {
+      const me = appState.currentUser;
+      if (!me || !c || !c.id) return false;
+      if (c.authorId) return c.authorId === me.id;
+      return c.author === me.name && c.authorRole === appState.userType;
+    }
+
+    function deleteTaskComment(catId, taskId, commentId) {
+      const { task } = findTaskCtx(catId, taskId);
+      if (!task || !Array.isArray(task.comments)) return;
+      const c = task.comments.find(x => x.id === commentId);
+      if (!c || !isMyComment(c)) return;
+      const replies = task.comments.filter(r => r.replyTo === commentId);
+      if (!window.confirm(t(replies.length ? 'delCommentRepliesConfirm' : 'delCommentConfirm'))) return;
+      const gone = new Set([commentId, ...replies.map(r => r.id)]);
+      if (c.replyTo) {   // deleting my answer re-opens the question if nothing else answers it
+        const parent = task.comments.find(x => x.id === c.replyTo);
+        if (parent && !task.comments.some(r => r.replyTo === parent.id && !gone.has(r.id))) parent.answered = false;
+      }
+      task.comments = task.comments.filter(x => !gone.has(x.id));
+      task.deletedCommentIds = Array.from(new Set([...(task.deletedCommentIds || []), ...gone])).slice(-300);
+      saveStudentsToStorage();
+      renderWorkspace();
+      if (appState.userType === 'professor') renderProfessorDashboard();
+      openTaskModal(catId, taskId);
+    }
+
     function renderCommentsHtml(cat, task, isProf) {
       const list = task.comments || [];
       if (list.length === 0) {
@@ -2548,9 +2721,10 @@ service cloud.firestore {
         const canReply = isProf && isQ && c.toProfId === myId && !c.answered;
         return `
           <div class="comment-card ${isQ ? 'question' : ''} ${isReply ? 'comment-reply' : ''}">
-            <div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;flex-wrap:wrap">
+            <div class="comment-head">
               <strong>${escapeHtml(c.author)}</strong>
-              <span class="brand-sub mono">${escapeHtml(c.time)}</span>
+              <span class="brand-sub mono" style="margin-left:auto">${escapeHtml(c.time)}</span>
+              ${isMyComment(c) ? `<details class="dots"><summary title="${escapeHtml(t('delComment'))}">⋯</summary><div class="dots-menu"><button type="button" onclick="deleteTaskComment('${cat.id}', '${task.id}', '${c.id}')">${escapeHtml(t('delComment'))}</button></div></details>` : ''}
             </div>
             ${badge ? `<div style="margin-top:4px">${badge}</div>` : ''}
             <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;white-space:pre-wrap">${escapeHtml(c.text)}</div>
@@ -2584,8 +2758,15 @@ service cloud.firestore {
         if (changed) saveStudentsToStorage();
       }
 
+      if (!isProf && editable) {
+        let seen = false;
+        (task.comments || []).forEach(c => { if (c.authorRole === 'professor' && c.seenByStudent === false) { c.seenByStudent = true; seen = true; } });
+        if (task.approvedNotif && !task.approvedNotif.seen) { task.approvedNotif.seen = true; seen = true; }
+        if (seen) saveStudentsToStorage();
+      }
+
       document.getElementById('td-meta').textContent =
-        `${getCategoryDisplayName(cat)} · ${proj.driveFolderPath}`;
+        `${proj.name} · ${getCategoryDisplayName(cat)}`;
       document.getElementById('td-title').textContent = getTaskDisplayName(task);
 
       const statuses = ['Not Started', 'In Progress', 'Ready for Review', 'Approved'];
@@ -2659,21 +2840,25 @@ service cloud.firestore {
 
         <div class="panel" style="margin-bottom:14px">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-            <div>
-              <div class="field-label" style="margin:0">${escapeHtml(t('mediaSectionLbl'))}</div>
-              <div class="brand-sub mono" style="color:#93c5fd">${escapeHtml(proj.driveFolderPath)}</div>
-            </div>
+            <div class="field-label" style="margin:0">${escapeHtml(t('mediaSectionLbl'))}</div>
             ${editable ? `
-              <label class="btn btn-sm btn-primary" style="cursor:pointer">
-                ${escapeHtml(t('uploadMediaBtn'))}
-                <input type="file" accept="image/*,video/*" multiple style="display:none" onchange="onUploadTaskMedia(event, '${cat.id}', '${task.id}')" />
-              </label>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <label class="btn btn-sm btn-primary" style="cursor:pointer">
+                  ${escapeHtml(t('uploadMediaBtn'))}
+                  <input type="file" accept="image/*,video/*" multiple style="display:none" onchange="onUploadTaskMedia(event, '${cat.id}', '${task.id}')" />
+                </label>
+                <button type="button" class="btn btn-sm" onclick="openAddDocModal('${cat.id}', '${task.id}')">${escapeHtml(t('addDocBtn'))}</button>
+              </div>
             ` : ''}
           </div>
 
-          ${mediaList.length === 0
+          ${taskDocsHtml(cat, task, editable)}
+
+          ${(mediaList.length === 0 && !(task.docs || []).length)
             ? `<div class="brand-sub" style="margin-top:8px">${escapeHtml(t('noMedia'))}</div>`
-            : `<div class="media-grid">
+            : ''}
+
+          ${mediaList.length === 0 ? '' : `<div class="media-grid">
                 ${mediaList.map((item, idx) => `
                   <div class="media-card">
                     <div class="media-thumb" title="${escapeHtml(t('mediaOpenHint'))}" onclick="openLightbox('${cat.id}', '${task.id}', ${idx})">
@@ -2683,12 +2868,10 @@ service cloud.firestore {
                       <span class="brand-sub mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(item.name)}</span>
                       ${editable ? `<button type="button" class="btn btn-sm btn-danger" style="padding:2px 6px" onclick="deleteTaskMedia('${cat.id}', '${task.id}', ${idx})">✕</button>` : ''}
                     </div>
-                    <div class="brand-sub mono" style="font-size:10px;color:#86efac">${escapeHtml(item.drivePath)}</div>
                     ${mediaVersionRowHtml(cat.id, task.id, item, idx, editable)}
                   </div>
                 `).join('')}
-              </div>`
-          }
+              </div>`}
         </div>
 
         <div class="panel">
@@ -2735,6 +2918,7 @@ service cloud.firestore {
       if (!task) return;
 
       task.status = newStatus;
+      if (newStatus === 'Approved' && appState.userType === 'professor') task.approvedNotif = { ts: Date.now(), seen: false };
       if (newStatus === 'Ready for Review' && !task.reviewerProfId) {
         task.reviewerProfId = PROFESSORS[0] ? PROFESSORS[0].id : '';
       }
@@ -2943,7 +3127,8 @@ service cloud.firestore {
         toProfId: toProfId || '',
         read: false,
         answered: false,
-        replyTo: (isProf && replyTargetId) ? replyTargetId : null
+        replyTo: (isProf && replyTargetId) ? replyTargetId : null,
+        seenByStudent: !isProf
       };
       task.comments.push(comment);
 
@@ -3118,8 +3303,8 @@ service cloud.firestore {
       const d = new Date(n.ts || Date.now());
       const when = d.toLocaleDateString([], { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       return `
-        <div class="inbox-row">
-          <div><span class="new-dot"></span><span class="badge ${n.isPublic ? 'badge-public' : 'badge-private'}">${escapeHtml(t(n.isPublic ? 'publicLbl' : 'privateLbl'))}</span>
+        <div class="inbox-row vis-silent">
+          <div><span class="badge ${n.isPublic ? 'badge-public' : 'badge-private'}">${escapeHtml(t(n.isPublic ? 'publicLbl' : 'privateLbl'))}</span>
             <strong>${escapeHtml(n.studentName)}</strong> — ${escapeHtml(n.projectName)}
             <div class="brand-sub" style="margin-top:2px">${escapeHtml(t(n.isPublic ? 'visNotifPublic' : 'visNotifPrivate'))} · ${escapeHtml(when)}</div></div>
           <div style="display:flex;gap:6px;flex-shrink:0">
@@ -3180,7 +3365,7 @@ service cloud.firestore {
         approvals: groups.reduce((n, g) => n + g.approvals.length, 0),
         privacy: vis.length
       };
-      const total = counts.questions + counts.approvals + counts.privacy;
+      const total = counts.questions + counts.approvals;
       const chip = (key, label, n) => `<button type="button" class="chip ${f === key ? 'active' : ''}" onclick="event.stopPropagation();setInboxFilter('${key}')">${escapeHtml(label)} <span class="mono">${n}</span></button>`;
       const filters = `<div class="inbox-filters">${chip('all', t('inboxAll'), total)}${chip('questions', t('inboxFQuestions'), counts.questions)}${chip('approvals', t('inboxFApprovals'), counts.approvals)}${chip('privacy', t('inboxFPrivacy'), counts.privacy)}</div>`;
 
@@ -3202,21 +3387,81 @@ service cloud.firestore {
       return filters + body + markAll;
     }
 
+    function collectStudentNotifs() {
+      const me = appState.currentUser;
+      if (!me || appState.userType !== 'student') return [];
+      const out = [];
+      (me.projects || []).forEach(proj => {
+        (proj.categories || []).forEach(cat => (cat.tasks || []).forEach(task => {
+          const fresh = (task.comments || []).filter(c => c.authorRole === 'professor' && c.seenByStudent === false);
+          if (fresh.length) {
+            const last = fresh[fresh.length - 1];
+            out.push({ kind: 'comment', proj, cat, task, n: fresh.length, text: last.text || '', ts: last.ts || 0 });
+          }
+          if (task.approvedNotif && !task.approvedNotif.seen) out.push({ kind: 'approved', proj, cat, task, ts: task.approvedNotif.ts || 0 });
+        }));
+        if (proj.gradeNotif && !proj.gradeNotif.seen) out.push({ kind: 'grade', proj, ts: proj.gradeNotif.ts || 0 });
+      });
+      return out.sort((a, b) => b.ts - a.ts);
+    }
+
+    function studentInboxHtml(items) {
+      if (!items.length) return `<div class="brand-sub">${escapeHtml(t('stNoNotifs'))}</div>`;
+      return items.map(it => {
+        const label = it.kind === 'comment' ? t('stNotifComment') : it.kind === 'approved' ? t('stNotifApproved') : t('stNotifGrade');
+        const icon = it.kind === 'comment' ? ic('chat') : it.kind === 'approved' ? '✓' : ic('hourglass');
+        const where = it.task ? `${escapeHtml(getCategoryDisplayName(it.cat))} / <strong>${escapeHtml(getTaskDisplayName(it.task))}</strong>` : '';
+        const snippet = it.kind === 'comment' ? (it.text.length > 80 ? it.text.slice(0, 80) + '…' : it.text) : '';
+        return `<div class="inbox-row">
+          <div><span class="new-dot"></span>${icon} <strong>${escapeHtml(label)}</strong> — ${escapeHtml(it.proj.name)}
+            <div class="brand-sub" style="margin-top:2px">${where}${snippet ? ` · ${escapeHtml(snippet)}` : ''}</div></div>
+          <button type="button" class="btn btn-primary btn-sm" onclick="event.stopPropagation();openStudentNotif('${it.proj.id}', '${it.cat ? it.cat.id : ''}', '${it.task ? it.task.id : ''}', '${it.kind}')">${escapeHtml(t('stNotifOpen'))}</button>
+        </div>`;
+      }).join('');
+    }
+
+    function openStudentNotif(projectId, catId, taskId, kind) {
+      document.getElementById('notif-panel').classList.add('hidden');
+      appState.activeProjectId = projectId;
+      appState.activeTab = 'workspace';
+      if (kind === 'grade') {
+        const pr = ((appState.currentUser && appState.currentUser.projects) || []).find(p => p.id === projectId);
+        if (pr && pr.gradeNotif && !pr.gradeNotif.seen) { pr.gradeNotif.seen = true; saveStudentsToStorage(); }
+        renderAll();
+        return;
+      }
+      renderAll();
+      openTaskModal(catId, taskId);
+    }
+
     function updateNotifBell() {
       const wrap = document.getElementById('notif-wrap');
       if (!wrap) return;
-      if (appState.userType !== 'professor' || !appState.currentUser) {
+      if (!appState.currentUser || (appState.userType !== 'professor' && appState.userType !== 'student')) {
         wrap.classList.add('hidden');
         return;
       }
       wrap.classList.remove('hidden');
+      if (appState.userType === 'student') {
+        const items = collectStudentNotifs();
+        const sb = document.getElementById('notif-badge');
+        sb.textContent = items.length;
+        sb.classList.toggle('hidden', items.length === 0);
+        document.getElementById('notif-btn').classList.toggle('has-new', items.length > 0);
+        document.getElementById('notif-btn').title = t('inboxTitle');
+        document.getElementById('notif-panel').innerHTML = `
+          <div class="field-label" style="margin:0 0 8px">${escapeHtml(t('inboxTitle'))} (${items.length})</div>
+          ${studentInboxHtml(items)}
+        `;
+        return;
+      }
       const groups = collectProfInbox(appState.currentUser.id);
       const vis = collectVisNotifs(appState.currentUser.id);
-      const n = groups.length + vis.length;
+      const n = groups.length;   // "went private / public" notices stay in the panel but never count, glow or toast
       const badge = document.getElementById('notif-badge');
       badge.textContent = n;
       badge.classList.toggle('hidden', n === 0);
-      document.getElementById('notif-btn').classList.toggle('has-new', vis.length > 0 || groups.some(g => g.unread));
+      document.getElementById('notif-btn').classList.toggle('has-new', groups.some(g => g.unread));
       document.getElementById('notif-btn').title = t('inboxTitle');
 
       document.getElementById('notif-panel').innerHTML = `
@@ -3323,7 +3568,6 @@ service cloud.firestore {
       const allVis = collectVisNotifs(profId);
       const pendingByYear = {};
       allGroups.forEach(g => { const y = yearOfStudent(g.stu); pendingByYear[y] = (pendingByYear[y] || 0) + g.approvals.length + g.questions.length; });
-      allVis.forEach(n => { const p = studentProfiles[n.studentId]; const y = Number(p ? p.studyYear : n.studentYear) || 1; pendingByYear[y] = (pendingByYear[y] || 0) + 1; });
       const pendingAll = Object.values(pendingByYear).reduce((s, n) => s + n, 0);
 
       const years = ['ALL', '1', '2', '3', '4'];
@@ -3452,6 +3696,7 @@ service cloud.firestore {
         final: document.getElementById('gm-final').value.trim()
       };
       proj.profNote = document.getElementById('gm-note').value.trim();
+      proj.gradeNotif = { ts: Date.now(), seen: false };
 
       saveStudentsToStorage();
       closeModal('grading-modal');
@@ -3853,11 +4098,11 @@ service cloud.firestore {
       const drivePill = document.getElementById('drive-status-pill');
 
       if (proj && proj.driveFolderPath) {
-        driveLabel.textContent = proj.driveFolderPath;
-        drivePill.title = `${proj.driveFolderPath} (Anyone with the link)`;
+        driveLabel.textContent = proj.name;
+        drivePill.title = proj.name;
       } else {
-        driveLabel.textContent = 'Animation Pipeline (Anyone with the link)';
-        drivePill.title = 'Animation Pipeline (Anyone with the link)';
+        driveLabel.textContent = 'Drive';
+        drivePill.title = 'Drive';
       }
     }
 
@@ -3923,6 +4168,7 @@ service cloud.firestore {
     }
 
     window.addEventListener('resize', () => positionTodayLine());
+    document.addEventListener('click', e => document.querySelectorAll('details.dots[open]').forEach(d => { if (!d.contains(e.target)) d.removeAttribute('open'); }));
 
     (function initPortal() {
       injectStaticIcons();

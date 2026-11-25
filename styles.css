@@ -983,3 +983,33 @@ th.day-th.has-files::after { content: ''; position: absolute; left: 50%; bottom:
   .inbox-row { flex-wrap: wrap; }
 }
 @media (hover: none) { .btn-del { opacity: .7; } }
+
+
+/* ---- Google Docs in a task ---- */
+.doc-list { display: grid; gap: 6px; margin-top: 8px; }
+.doc-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px; background: var(--bg-canvas); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); }
+.doc-link { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--text-primary); text-decoration: none; font-size: 12px; }
+.doc-link:hover .doc-name { text-decoration: underline; }
+.doc-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---- comments: three-dots menu ---- */
+.comment-card { position: relative; }
+.comment-head { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+details.dots { position: relative; }
+details.dots > summary { list-style: none; cursor: pointer; padding: 0 6px; border-radius: 6px; color: var(--text-secondary); font-size: 16px; line-height: 1.2; }
+details.dots > summary::-webkit-details-marker { display: none; }
+details.dots > summary:hover, details.dots[open] > summary { background: var(--bg-elevated); color: var(--text-primary); }
+.dots-menu { position: absolute; right: 0; top: 100%; z-index: 20; min-width: 150px; background: var(--bg-card); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); box-shadow: 0 8px 20px rgba(0,0,0,.5); padding: 4px; }
+.dots-menu button { width: 100%; text-align: left; background: none; border: 0; padding: 6px 8px; border-radius: 6px; font-size: 12px; color: #fca5a5; }
+.dots-menu button:hover { background: var(--danger-soft); }
+
+/* ---- icons on schedule bars ---- */
+.bar-wrap { position: relative; width: 100%; }
+.bar-marks { position: absolute; top: -5px; right: -3px; display: flex; gap: 2px; z-index: 3; pointer-events: none; }
+.bar-mark { width: 15px; height: 15px; border-radius: 50%; background: #0b0e14; border: 1px solid var(--border-strong); display: flex; align-items: center; justify-content: center; color: #e5e7eb; }
+.bar-mark .ic { width: 9px; height: 9px; }
+.bar-mark.file { color: #7dd3fc; }
+.bar-mark.ask { color: #fcd34d; }
+
+/* ---- privacy notices: present, never pushy ---- */
+.vis-silent { opacity: .6; }
