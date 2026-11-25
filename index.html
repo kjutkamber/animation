@@ -77,7 +77,7 @@
           <form id="student-login-form" onsubmit="handleStudentLogin(event)">
             <div class="field-group">
               <label id="lbl-login-index" class="field-label" for="login-index">Broj indeksa *</label>
-              <input id="login-index" type="text" class="input" required placeholder="npr. 2024/0015" autocomplete="username" />
+              <input id="login-index" type="text" class="input" required autocomplete="username" />
             </div>
             <div class="field-group">
               <label id="lbl-login-pass" class="field-label" for="login-pass">Lozinka *</label>
@@ -90,17 +90,17 @@
             <div class="grid-2">
               <div class="field-group">
                 <label id="lbl-reg-fname" class="field-label" for="reg-fname">Ime *</label>
-                <input id="reg-fname" type="text" class="input" required placeholder="npr. Ana" />
+                <input id="reg-fname" type="text" class="input" required />
               </div>
               <div class="field-group">
                 <label id="lbl-reg-lname" class="field-label" for="reg-lname">Prezime *</label>
-                <input id="reg-lname" type="text" class="input" required placeholder="npr. Jovanović" />
+                <input id="reg-lname" type="text" class="input" required />
               </div>
             </div>
             <div class="grid-2">
               <div class="field-group">
                 <label id="lbl-reg-index" class="field-label" for="reg-index">Broj indeksa *</label>
-                <input id="reg-index" type="text" class="input" required placeholder="npr. 2024/0015" />
+                <input id="reg-index" type="text" class="input" required />
               </div>
               <div class="field-group">
                 <label id="lbl-reg-year" class="field-label" for="reg-year">Godina studija *</label>
@@ -187,11 +187,11 @@
           <div class="grid-2">
             <div class="field-group">
               <label id="lbl-pr-name" class="field-label" for="pr-name">Ime i prezime *</label>
-              <input id="pr-name" class="input" required placeholder="npr. Prof. Jelena Marković" />
+              <input id="pr-name" class="input" required />
             </div>
             <div class="field-group">
               <label id="lbl-pr-title" class="field-label" for="pr-title">Oblast / titula</label>
-              <input id="pr-title" class="input" placeholder="npr. Režija i storibord" />
+              <input id="pr-title" class="input" />
             </div>
           </div>
           <div class="grid-2">
@@ -339,7 +339,7 @@
       </div>
 
       <details id="ws-todo" class="card todo-card" open>
-        <summary id="ws-todo-title">Šta treba da se radi (po kalendaru)</summary>
+        <summary id="ws-todo-title">To do list</summary>
         <div id="ws-todo-body" class="todo-body"></div>
       </details>
 
@@ -388,7 +388,7 @@
       <form id="new-project-form" onsubmit="handleCreateProject(event)">
         <div class="field-group">
           <label id="lbl-np-name" class="field-label" for="np-name">Naziv projekta *</label>
-          <input id="np-name" type="text" class="input" required placeholder="npr. Anakonda" />
+          <input id="np-name" type="text" class="input" required />
         </div>
 
         <div class="grid-2">
@@ -507,22 +507,22 @@
         <div class="grid-2">
           <div class="field-group">
             <label id="lbl-gm-pre" class="field-label" for="gm-pre">Pretprodukcija</label>
-            <input id="gm-pre" type="text" class="input" placeholder="npr. 9 / A" />
+            <input id="gm-pre" type="text" class="input" />
           </div>
           <div class="field-group">
             <label id="lbl-gm-prod" class="field-label" for="gm-prod">Produkcija</label>
-            <input id="gm-prod" type="text" class="input" placeholder="npr. 8 / B+" />
+            <input id="gm-prod" type="text" class="input" />
           </div>
         </div>
 
         <div class="grid-2">
           <div class="field-group">
             <label id="lbl-gm-post" class="field-label" for="gm-post">Postprodukcija</label>
-            <input id="gm-post" type="text" class="input" placeholder="npr. 10 / A+" />
+            <input id="gm-post" type="text" class="input" />
           </div>
           <div class="field-group">
             <label id="lbl-gm-final" class="field-label" for="gm-final">Konačna ocena</label>
-            <input id="gm-final" type="text" class="input" placeholder="npr. 9 (A)" />
+            <input id="gm-final" type="text" class="input" />
           </div>
         </div>
 

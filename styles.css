@@ -941,3 +941,45 @@ th.day-th.has-files::after { content: ''; position: absolute; left: 50%; bottom:
 .stu-proj { font-size: 12px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stu-tile-meta { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 11px; }
 .stu-tile-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
+
+
+/* ---- dropdown panel in task window, delete buttons ---- */
+.fold > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::before { content: '▸'; color: var(--text-secondary); }
+.fold[open] > summary::before { content: '▾'; }
+.btn-del { opacity: .45; color: #fca5a5; }
+.btn-del:hover { opacity: 1; background: var(--danger-soft); }
+.todo-row .todo-date { min-width: 0; margin-left: auto; white-space: nowrap; }
+.todo-group.today .todo-row { background: var(--bg-elevated); }
+
+/* ---- tablets & small desktops ---- */
+@media (max-width: 1100px) {
+  .container { padding: 12px 10px 36px; }
+  .topbar { padding: 8px 12px; gap: 8px; }
+  .drive-pill { display: none; }
+  table.timeline-table { min-width: 0; }
+  .sticky-col { min-width: 220px; max-width: 220px; width: 220px; }
+  .day-th { min-width: 28px; width: 28px; }
+  .section-header { gap: 10px; }
+  .section-title { font-size: 18px; }
+}
+@media (max-width: 820px) {
+  body, html { font-size: 13px; }
+  .topbar-left, .topbar-right { gap: 6px; }
+  .brand-sub#topbar-user-sub { display: none; }
+  .nav-btn { padding: 6px 9px; font-size: 12px; }
+  .btn { min-height: 34px; }
+  .sticky-col { min-width: 150px; max-width: 150px; width: 150px; }
+  .task-row td.sticky-col { padding-left: 22px; }
+  .cat-row td.sticky-col { padding-left: 12px; }
+  .day-th { min-width: 26px; width: 26px; font-size: 9px; }
+  .card { padding: 12px; }
+  .modal-backdrop { padding: 8px; align-items: flex-start; }
+  .modal-box { max-height: none; padding: 14px; }
+  .todo-row { flex-wrap: wrap; }
+  .todo-row .todo-date { margin-left: 0; width: 100%; padding-left: 16px; }
+  .tile-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .inbox-row { flex-wrap: wrap; }
+}
+@media (hover: none) { .btn-del { opacity: .7; } }

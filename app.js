@@ -179,7 +179,12 @@ service cloud.firestore {
         daysShort: ['Pon', 'Uto', 'Sre', 'Čet', 'Pet', 'Sub', 'Ned'],
         daysFull: ['Ponedeljak', 'Utorak', 'Sreda', 'Četvrtak', 'Petak', 'Subota', 'Nedelja'],
         scheduledDaysCount: (n) => `${n}d`,
-        todoTitle: 'Šta treba da se radi (po kalendaru)',
+        todoTitle: 'To do list',
+        todoShowMore: (n) => `Prikaži dalje (${n})`, todoShowLess: 'Sakrij', todoNothingToday: 'Danas nema zakazanih zadataka.',
+        delCatTitle: 'Obriši kategoriju', delTaskTitle: 'Obriši zadatak',
+        delCatConfirm: (name, n) => `Obrisati kategoriju „${name}” i svih ${n} zadataka u njoj (sa komentarima i vezama ka fajlovima)? Fajlovi na Drive-u ostaju.`,
+        delTaskConfirm: (name) => `Obrisati zadatak „${name}” (sa komentarima i vezama ka fajlovima)? Fajlovi na Drive-u ostaju.`,
+        catDeleted: 'Kategorija obrisana.', taskDeleted: 'Zadatak obrisan.',
         todoOverdue: 'Kasni', todoToday: 'Danas', todoSoon: 'Narednih 7 dana', todoLater: 'Kasnije',
         todoEmpty: 'Nema zadataka koji čekaju rad.',
         todoNoDates: 'Projekat nema datum početka, pa se zadaci ne mogu rasporediti po kalendaru.',
@@ -373,7 +378,12 @@ service cloud.firestore {
         daysShort: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
         daysFull: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
         scheduledDaysCount: (n) => `${n}d`,
-        todoTitle: 'To-do by calendar',
+        todoTitle: 'To do list',
+        todoShowMore: (n) => `Show more (${n})`, todoShowLess: 'Hide', todoNothingToday: 'Nothing scheduled for today.',
+        delCatTitle: 'Delete category', delTaskTitle: 'Delete task',
+        delCatConfirm: (name, n) => `Delete category “${name}” and all ${n} tasks in it (with comments and file links)? Files on Drive stay.`,
+        delTaskConfirm: (name) => `Delete task “${name}” (with comments and file links)? Files on Drive stay.`,
+        catDeleted: 'Category deleted.', taskDeleted: 'Task deleted.',
         todoOverdue: 'Overdue', todoToday: 'Today', todoSoon: 'Next 7 days', todoLater: 'Later',
         todoEmpty: 'Nothing waiting to be worked on.',
         todoNoDates: 'The project has no start date, so tasks cannot be placed on the calendar.',
@@ -622,7 +632,9 @@ service cloud.firestore {
       adminOpen: false,
       driveOnboarding: false,
       justRegistered: false,
-      inboxFilter: 'all'     // 'all' | 'questions' | 'approvals' | 'privacy'
+      inboxFilter: 'all',    // 'all' | 'questions' | 'approvals' | 'privacy'
+      todoMore: false,
+      todayScrolledFor: ''
     };
 
     function t(key, ...args) {
@@ -1252,7 +1264,7 @@ service cloud.firestore {
       if (!proj.grades) {
         proj.grades = { pre: '', prod: '', post: '', final: '' };
       }
-      if (!Array.isArray(proj.categories) || proj.categories.length === 0) {
+      if (!Array.isArray(proj.categories)) {
         proj.categories = buildStarterCategories();
       }
       proj.categories.forEach(cat => {
@@ -1901,13 +1913,14 @@ service cloud.firestore {
       return runs;
     }
 
+    function toggleTodoMore() { appState.todoMore = !appState.todoMore; const st = getActiveStudent(); const pr = getActiveProject(st); if (pr) renderTodo(pr); }
+
     function renderTodo(proj) {
       const body = document.getElementById('ws-todo-body');
       const title = document.getElementById('ws-todo-title');
       if (!body || !title) return;
-      title.textContent = t('todoTitle');
       const tc = dateToColIndex(proj, new Date());
-      if (tc === null) { body.innerHTML = `<div class="brand-sub">${escapeHtml(t('todoNoDates'))}</div>`; return; }
+      if (tc === null) { title.textContent = t('todoTitle'); body.innerHTML = `<div class="brand-sub">${escapeHtml(t('todoNoDates'))}</div>`; return; }
 
       const groups = [
         { key: 'todoOverdue', cls: 'overdue', items: [] },
@@ -1925,25 +1938,27 @@ service cloud.firestore {
       });
       groups.forEach(g => g.items.sort((a, b) => a.from - b.from));
 
-      const open = groups.reduce((n, g) => n + g.items.length, 0);
-      title.textContent = `${t('todoTitle')} (${open})`;
-      if (!open) { body.innerHTML = `<div class="brand-sub">${escapeHtml(t('todoEmpty'))}</div>`; return; }
+      const nToday = groups[1].items.length, nOver = groups[0].items.length;
+      const nMore = groups[0].items.length + groups[2].items.length + groups[3].items.length;
+      title.innerHTML = `${escapeHtml(t('todoTitle'))} ${nToday ? `<span class="badge mono" style="font-size:10px;padding:1px 6px">${nToday}</span>` : ''}${nOver ? ` <span class="badge badge-private mono" style="font-size:10px;padding:1px 6px" title="${escapeHtml(t('todoOverdue'))}">${nOver}</span>` : ''}`;
 
-      body.innerHTML = groups.filter(g => g.items.length).map(g => `
-        <div class="todo-group ${g.cls}">
-          <div class="todo-group-title">${escapeHtml(t(g.key))} <span class="mono">${g.items.length}</span></div>
-          ${g.items.map(r => {
-            const when = r.from === r.to ? fmtCol(proj, r.from) : `${fmtCol(proj, r.from)} – ${fmtCol(proj, r.to)}`;
-            const n = r.to - r.from + 1;
-            return `<div class="todo-row" onclick="openTaskModal('${r.cat.id}', '${r.task.id}')">
-              <span class="color-dot" style="background:${escapeHtml(r.cat.color || '#6366f1')}"></span>
-              <span class="todo-date mono">${escapeHtml(when)}</span>
-              <span class="todo-name">${escapeHtml(getCategoryDisplayName(r.cat))} / <strong>${escapeHtml(getTaskDisplayName(r.task))}</strong></span>
-              <span class="badge mono" style="font-size:10px;padding:1px 6px">${escapeHtml(t('scheduledDaysCount', n))}</span>
-              <span class="badge" style="font-size:10px;padding:1px 6px">${escapeHtml(getStatusLabel(r.task.status))}</span>
-            </div>`;
-          }).join('')}
-        </div>`).join('');
+      const rowHtml = r => {
+        const when = r.from === r.to ? fmtCol(proj, r.from) : `${fmtCol(proj, r.from)} – ${fmtCol(proj, r.to)}`;
+        const n = r.to - r.from + 1;
+        return `<div class="todo-row" onclick="openTaskModal('${r.cat.id}', '${r.task.id}')">
+          <span class="color-dot" style="background:${escapeHtml(r.cat.color || '#6366f1')}"></span>
+          <span class="todo-name">${escapeHtml(getCategoryDisplayName(r.cat))} / <strong>${escapeHtml(getTaskDisplayName(r.task))}</strong></span>
+          <span class="todo-date mono">${escapeHtml(when)} · ${escapeHtml(t('scheduledDaysCount', n))}</span>
+        </div>`;
+      };
+      const groupHtml = g => `<div class="todo-group ${g.cls}"><div class="todo-group-title">${escapeHtml(t(g.key))} <span class="mono">${g.items.length}</span></div>${g.items.map(rowHtml).join('')}</div>`;
+
+      let html = nToday ? `<div class="todo-group today">${groups[1].items.map(rowHtml).join('')}</div>` : `<div class="brand-sub">${escapeHtml(t('todoNothingToday'))}</div>`;
+      if (nMore) {
+        if (appState.todoMore) html += [groups[0], groups[2], groups[3]].filter(g => g.items.length).map(groupHtml).join('');
+        html += `<div><button type="button" class="btn btn-sm" onclick="toggleTodoMore()">${escapeHtml(appState.todoMore ? t('todoShowLess') : t('todoShowMore', nMore))}</button></div>`;
+      }
+      body.innerHTML = html;
     }
 
     function getCategoryDaySet(cat) {
@@ -2102,8 +2117,8 @@ service cloud.firestore {
                     ${(cat.grade || isProf) ? `<span class="badge mono" style="font-size:10px;padding:1px 6px;${isProf ? 'cursor:pointer' : ''}" ${isProf ? `onclick="setCategoryGrade('${cat.id}')"` : ''}>${escapeHtml(t('catGradeLbl'))}: ${escapeHtml(cat.grade || '—')}</span>` : ''}
                   </div>
                   <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
-                    <span class="badge mono" style="font-size:10px;padding:1px 6px">${t('scheduledDaysCount', catDaySet.size)}</span>
                     ${editable ? `<button type="button" class="btn-icon" title="${escapeHtml(t('addTaskTitle'))}" onclick="openAddTaskModal('${cat.id}')">+</button>` : ''}
+                    ${editable ? `<button type="button" class="btn-icon btn-del" title="${escapeHtml(t('delCatTitle'))}" onclick="deleteCategory('${cat.id}')">×</button>` : ''}
                   </div>
                 </div>
               </td>
@@ -2159,6 +2174,7 @@ service cloud.firestore {
                       ${mediaCount > 0 ? `<span class="badge mono" style="font-size:10px;padding:1px 5px">${ic('clip')} ${mediaCount}</span>` : ''}
                       ${openQCount > 0 ? `<span class="badge mono" style="font-size:10px;padding:1px 5px;color:#fcd34d">${ic('question')} ${openQCount}</span>` : ''}
                       ${commentCount > 0 ? `<span class="badge mono" style="font-size:10px;padding:1px 5px">${ic('chat')} ${commentCount}</span>` : ''}
+                      ${editable ? `<button type="button" class="btn-icon btn-del" title="${escapeHtml(t('delTaskTitle'))}" onclick="deleteTask('${cat.id}', '${task.id}')">×</button>` : ''}
                     </div>
                   </div>
                 </td>
@@ -2358,6 +2374,32 @@ service cloud.firestore {
     /* =========================================================================
        11. ADD CATEGORY & ADD TASK MODALS
        ========================================================================= */
+    function deleteCategory(catId) {
+      if (!canEditActiveProject()) return;
+      const stu = getActiveStudent();
+      const proj = getActiveProject(stu);
+      const cat = proj ? proj.categories.find(c => c.id === catId) : null;
+      if (!cat) return;
+      if (!window.confirm(t('delCatConfirm', getCategoryDisplayName(cat), (cat.tasks || []).length))) return;
+      proj.categories = proj.categories.filter(c => c.id !== catId);
+      if (activeTaskModalIds && activeTaskModalIds.catId === catId) { activeTaskModalIds = null; closeModal('task-detail-modal'); }
+      saveStudentsToStorage();
+      renderWorkspace();
+      showToast(t('catDeleted'));
+    }
+
+    function deleteTask(catId, taskId) {
+      if (!canEditActiveProject()) return;
+      const { proj, cat, task } = findTaskCtx(catId, taskId);
+      if (!proj || !cat || !task) return;
+      if (!window.confirm(t('delTaskConfirm', getTaskDisplayName(task)))) return;
+      cat.tasks = cat.tasks.filter(x => x.id !== taskId);
+      if (activeTaskModalIds && activeTaskModalIds.taskId === taskId) { activeTaskModalIds = null; closeModal('task-detail-modal'); }
+      saveStudentsToStorage();
+      renderWorkspace();
+      showToast(t('taskDeleted'));
+    }
+
     function openAddCategoryModal(phaseKey) {
       if (!canEditActiveProject()) return;
       const stu = getActiveStudent();
@@ -2474,6 +2516,7 @@ service cloud.firestore {
        12. TASK MODAL: DAYS, MEDIA UPLOAD, REVIEWER & APPROVAL, COMMENTS
        ========================================================================= */
     let replyTargetId = null; // professor: id of question being answered
+    let taskDaysOpen = false; // task window: scheduled-days dropdown
 
     function findTaskCtx(catId, taskId) {
       const stu = getActiveStudent();
@@ -2593,14 +2636,13 @@ service cloud.firestore {
           </div>
         ` : ''}
 
-        <div class="panel" style="margin-bottom:14px">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-            <div style="display:flex;align-items:center;gap:8px">
-              <div class="field-label" style="margin:0">${escapeHtml(t('daysSectionLbl'))}</div>
-              <span class="badge mono" style="font-size:10px;padding:1px 6px">${escapeHtml(t('scheduledDaysCount', (task.scheduledDays || []).filter(dk => dayKeyToColIndex(dk) >= 0).length))}</span>
-            </div>
-            ${(editable && (task.scheduledDays || []).length) ? `<button type="button" class="btn btn-sm btn-danger" onclick="clearTaskDays('${cat.id}', '${task.id}')">${escapeHtml(t('daysClearAll'))}</button>` : ''}
-          </div>
+        <details class="panel fold" style="margin-bottom:14px" ${taskDaysOpen ? 'open' : ''} ontoggle="taskDaysOpen = this.open">
+          <summary>
+            <span class="field-label" style="margin:0">${escapeHtml(t('daysSectionLbl'))}</span>
+            <span class="badge mono" style="font-size:10px;padding:1px 6px">${escapeHtml(t('scheduledDaysCount', (task.scheduledDays || []).filter(dk => dayKeyToColIndex(dk) >= 0).length))}</span>
+          </summary>
+          ${(editable && (task.scheduledDays || []).length) ? `<div style="margin:8px 0 0"><button type="button" class="btn btn-sm btn-danger" onclick="clearTaskDays('${cat.id}', '${task.id}')">${escapeHtml(t('daysClearAll'))}</button></div>` : ''}
+          <div style="margin-top:8px">
           ${(() => {
             const keys = (task.scheduledDays || []).filter(dk => dayKeyToColIndex(dk) >= 0)
               .sort((a, b) => dayKeyToColIndex(a) - dayKeyToColIndex(b));
@@ -2612,7 +2654,8 @@ service cloud.firestore {
               return `<span class="badge mono" style="display:inline-flex;align-items:center;gap:6px;padding:3px 8px">${escapeHtml(label)}${editable ? `<button type="button" title="${escapeHtml(t('dayRemove'))}" style="background:none;border:0;padding:0;color:inherit;cursor:pointer;font-size:14px;line-height:1" onclick="removeTaskDay('${cat.id}', '${task.id}', '${dk}')">×</button>` : ''}</span>`;
             }).join('')}</div>`;
           })()}
-        </div>
+          </div>
+        </details>
 
         <div class="panel" style="margin-bottom:14px">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
